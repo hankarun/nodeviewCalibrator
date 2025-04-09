@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const topCtx = topViewCanvas.getContext('2d');
   const leftCtx = leftViewCanvas.getContext('2d');
   
+  // Scale control buttons
+  const topViewZoomIn = document.getElementById('topViewZoomIn');
+  const topViewZoomOut = document.getElementById('topViewZoomOut');
+  const topViewReset = document.getElementById('topViewReset');
+  const leftViewZoomIn = document.getElementById('leftViewZoomIn');
+  const leftViewZoomOut = document.getElementById('leftViewZoomOut');
+  const leftViewReset = document.getElementById('leftViewReset');
+  
   // Input elements
   const displayWidthInput = document.getElementById('displayWidth');
   const displayHeightInput = document.getElementById('displayHeight');
@@ -53,7 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedDisplayIndex = -1;
   
   // Scale factors for drawing (pixels per meter)
-  const SCALE_FACTOR = 200;
+  const DEFAULT_SCALE_FACTOR = 200;
+  let SCALE_FACTOR = DEFAULT_SCALE_FACTOR;
+  let topViewScale = DEFAULT_SCALE_FACTOR;
+  let leftViewScale = DEFAULT_SCALE_FACTOR;
   
   // Draw eye position
   function drawEye(ctx, viewType) {
@@ -96,6 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.font = '12px sans-serif';
       ctx.fillText('Z', originX + 5, 30);
       ctx.fillText('X', topViewCanvas.width - 30, originY - 5);
+      
+      // Display current scale
+      ctx.fillText(`Scale: ${(topViewScale / DEFAULT_SCALE_FACTOR).toFixed(1)}x`, 10, 20);
     } else if (viewType === 'left') {
       // Origin is at eye position (center of canvas)
       const originX = leftViewCanvas.width / 2;
@@ -118,6 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.font = '12px sans-serif';
       ctx.fillText('Z', leftViewCanvas.width - 30, originY - 5);
       ctx.fillText('Y', originX + 5, 30);
+      
+      // Display current scale
+      ctx.fillText(`Scale: ${(leftViewScale / DEFAULT_SCALE_FACTOR).toFixed(1)}x`, 10, 20);
     }
   }
   
@@ -134,13 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Origin is at eye position (center)
       const originX = topViewCanvas.width / 2;
       const originY = topViewCanvas.height / 2;
+      const scale = topViewScale;
       
       // Calculate display center position in top view (X and Z coordinates)
-      const displayCenterX = x * SCALE_FACTOR;
-      const displayCenterZ = -z * SCALE_FACTOR;
+      const displayCenterX = x * scale;
+      const displayCenterZ = -z * scale;
       
       // Calculate corners with rotation (yaw)
-      const halfWidth = width * SCALE_FACTOR / 2;
+      const halfWidth = width * scale / 2;
       
       // Calculate corners
       const x1 = displayCenterX - halfWidth * Math.cos(yawRad);
@@ -181,13 +199,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Origin is at eye position (center)
       const originX = leftViewCanvas.width / 2;
       const originY = leftViewCanvas.height / 2;
+      const scale = leftViewScale;
       
       // Calculate display position in left view (Y and Z coordinates)
-      const displayCenterZ = z * SCALE_FACTOR;
-      const displayCenterY = -y * SCALE_FACTOR;
+      const displayCenterZ = z * scale;
+      const displayCenterY = -y * scale;
       
       // Calculate corners with pitch rotation
-      const halfHeight = height * SCALE_FACTOR / 2;
+      const halfHeight = height * scale / 2;
       
       // Adjust positions based on pitch rotation
       const y1 = displayCenterY - halfHeight * Math.cos(pitchRad);
@@ -407,6 +426,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
+  // Scale handling functions
+  function changeTopViewScale(factor) {
+    const newScale = topViewScale * factor;
+    // Limit scaling to reasonable range
+    if (newScale >= DEFAULT_SCALE_FACTOR * 0.25 && newScale <= DEFAULT_SCALE_FACTOR * 4) {
+      topViewScale = newScale;
+      render();
+    }
+  }
+  
+  function changeLeftViewScale(factor) {
+    const newScale = leftViewScale * factor;
+    // Limit scaling to reasonable range
+    if (newScale >= DEFAULT_SCALE_FACTOR * 0.25 && newScale <= DEFAULT_SCALE_FACTOR * 4) {
+      leftViewScale = newScale;
+      render();
+    }
+  }
+  
+  function resetTopViewScale() {
+    topViewScale = DEFAULT_SCALE_FACTOR;
+    render();
+  }
+  
+  function resetLeftViewScale() {
+    leftViewScale = DEFAULT_SCALE_FACTOR;
+    render();
+  }
+  
   // Create a new display from input values
   function createDisplayFromInputs() {
     return {
@@ -449,4 +497,13 @@ document.addEventListener('DOMContentLoaded', () => {
       render();
     }
   });
+  
+  // Add scale button event listeners
+  topViewZoomIn.addEventListener('click', () => changeTopViewScale(1.25));
+  topViewZoomOut.addEventListener('click', () => changeTopViewScale(0.8));
+  topViewReset.addEventListener('click', resetTopViewScale);
+  
+  leftViewZoomIn.addEventListener('click', () => changeLeftViewScale(1.25));
+  leftViewZoomOut.addEventListener('click', () => changeLeftViewScale(0.8));
+  leftViewReset.addEventListener('click', resetLeftViewScale);
 });

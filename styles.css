@@ -164,3 +164,30 @@ canvas {
   text-align: center;
   padding: 20px 0;
 }
+
+.canvas-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.zoom-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-weight: bold;
+  min-width: 40px;
+}
+
+.zoom-button:hover {
+  background-color: #0b7dda;
+}
+
+.zoom-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
