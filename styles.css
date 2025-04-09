@@ -102,6 +102,7 @@ button:disabled {
   display: flex;
   gap: 20px;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .canvas-container {
@@ -110,6 +111,7 @@ button:disabled {
   padding: 15px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   flex: 1;
+  min-width: 300px;
 }
 
 h3 {

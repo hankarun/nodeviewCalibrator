@@ -7,8 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Canvas elements
   const topViewCanvas = document.getElementById('topView');
   const leftViewCanvas = document.getElementById('leftView');
+  const frontViewCanvas = document.getElementById('frontView');
   const topCtx = topViewCanvas.getContext('2d');
   const leftCtx = leftViewCanvas.getContext('2d');
+  const frontCtx = frontViewCanvas.getContext('2d');
   
   // Scale control buttons
   const topViewZoomIn = document.getElementById('topViewZoomIn');
@@ -17,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const leftViewZoomIn = document.getElementById('leftViewZoomIn');
   const leftViewZoomOut = document.getElementById('leftViewZoomOut');
   const leftViewReset = document.getElementById('leftViewReset');
+  const frontViewZoomIn = document.getElementById('frontViewZoomIn');
+  const frontViewZoomOut = document.getElementById('frontViewZoomOut');
+  const frontViewReset = document.getElementById('frontViewReset');
   
   // Input elements
   const displayWidthInput = document.getElementById('displayWidth');
@@ -66,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let SCALE_FACTOR = DEFAULT_SCALE_FACTOR;
   let topViewScale = DEFAULT_SCALE_FACTOR;
   let leftViewScale = DEFAULT_SCALE_FACTOR;
+  let frontViewScale = DEFAULT_SCALE_FACTOR;
   
   // Draw eye position
   function drawEye(ctx, viewType) {
@@ -77,6 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (viewType === 'left') {
       ctx.beginPath();
       ctx.arc(leftViewCanvas.width / 2, leftViewCanvas.height / 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (viewType === 'front') {
+      ctx.beginPath();
+      ctx.arc(frontViewCanvas.width / 2, frontViewCanvas.height / 2, 5, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -136,6 +146,31 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Display current scale
       ctx.fillText(`Scale: ${(leftViewScale / DEFAULT_SCALE_FACTOR).toFixed(1)}x`, 10, 20);
+    } else if (viewType === 'front') {
+      // Origin is at eye position (center of canvas)
+      const originX = frontViewCanvas.width / 2;
+      const originY = frontViewCanvas.height / 2;
+      
+      // Draw X axis (right)
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(frontViewCanvas.width - 20, originY);
+      ctx.stroke();
+      
+      // Draw Y axis (up)
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(originX, 20);
+      ctx.stroke();
+      
+      // Labels
+      ctx.fillStyle = 'black';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('X', frontViewCanvas.width - 30, originY - 5);
+      ctx.fillText('Y', originX + 5, 30);
+      
+      // Display current scale
+      ctx.fillText(`Scale: ${(frontViewScale / DEFAULT_SCALE_FACTOR).toFixed(1)}x`, 10, 20);
     }
   }
   
@@ -407,6 +442,152 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.font = '12px sans-serif';
         ctx.fillText(`Display ${selectedDisplayIndex + 1}`, originX + displayCenterZ, originY + displayCenterY - 10);
       }
+    } else if (viewType === 'front') {
+      // Origin is at eye position (center)
+      const originX = frontViewCanvas.width / 2;
+      const originY = frontViewCanvas.height / 2;
+      const scale = frontViewScale;
+      
+      // Calculate display position in front view (X and Y coordinates)
+      const displayCenterX = x * scale;
+      const displayCenterY = -y * scale;
+      
+      // Set styles based on selection state
+      ctx.lineWidth = isSelected ? 4 : 3;
+      ctx.strokeStyle = isSelected ? 'rgba(255, 165, 0, 0.9)' : 'purple';
+      
+      if (showAsRectangle) {
+        // Calculate all four corners of the display in 3D space
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        
+        // Define corners in display local space (before rotation)
+        // Top-left, top-right, bottom-right, bottom-left
+        const corners = [
+          { x: -halfWidth, y: halfHeight, z: 0 },
+          { x: halfWidth, y: halfHeight, z: 0 },
+          { x: halfWidth, y: -halfHeight, z: 0 },
+          { x: -halfWidth, y: -halfHeight, z: 0 }
+        ];
+        
+        // Apply rotations (roll, pitch, yaw in that order)
+        const rotatedCorners = corners.map(corner => {
+          // Apply roll (around Z)
+          let x1 = corner.x * Math.cos(rollRad) - corner.y * Math.sin(rollRad);
+          let y1 = corner.x * Math.sin(rollRad) + corner.y * Math.cos(rollRad);
+          let z1 = corner.z;
+          
+          // Apply pitch (around X)
+          let y2 = y1 * Math.cos(pitchRad) - z1 * Math.sin(pitchRad);
+          let z2 = y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
+          let x2 = x1;
+          
+          // Apply yaw (around Y)
+          let x3 = x2 * Math.cos(yawRad) - z2 * Math.sin(yawRad);
+          let z3 = x2 * Math.sin(yawRad) + z2 * Math.cos(yawRad);
+          let y3 = y2;
+          
+          return { x: x3, y: y3, z: z3 };
+        });
+        
+        // Apply translation
+        const finalCorners = rotatedCorners.map(corner => {
+          return {
+            x: corner.x + x,
+            y: corner.y + y,
+            z: corner.z + z
+          };
+        });
+        
+        // Project to front view (X-Y plane)
+        const frontViewCorners = finalCorners.map(corner => {
+          return {
+            x: originX + corner.x * scale,
+            y: originY - corner.y * scale // Y axis is inverted in canvas
+          };
+        });
+        
+        // Draw rectangle
+        ctx.beginPath();
+        ctx.moveTo(frontViewCorners[0].x, frontViewCorners[0].y);
+        for (let i = 1; i < frontViewCorners.length; i++) {
+          ctx.lineTo(frontViewCorners[i].x, frontViewCorners[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Fill with semi-transparent color
+        ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.2)' : 'rgba(128, 0, 128, 0.1)';
+        ctx.fill();
+        
+        // Draw sight lines from eye to corners
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = isSelected ? 'rgba(255, 165, 0, 0.3)' : 'rgba(128, 0, 128, 0.3)';
+        for (const corner of frontViewCorners) {
+          ctx.beginPath();
+          ctx.moveTo(originX, originY);
+          ctx.lineTo(corner.x, corner.y);
+          ctx.stroke();
+        }
+        
+        // Draw a center point on the display to make it more visible
+        ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.9)' : 'rgba(128, 0, 128, 0.9)';
+        ctx.beginPath();
+        const centerPoint = {
+          x: originX + displayCenterX,
+          y: originY + displayCenterY
+        };
+        ctx.arc(centerPoint.x, centerPoint.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Line-based drawing for front view
+        const halfWidth = width * scale / 2;
+        const halfHeight = height * scale / 2;
+        
+        // Adjust for rotations - simplified for basic display
+        // This is a projection onto the X-Y plane
+        
+        // Draw display as a line rectangle
+        ctx.beginPath();
+        ctx.rect(originX + displayCenterX - halfWidth, originY + displayCenterY - halfHeight, 
+                 halfWidth * 2, halfHeight * 2);
+        ctx.stroke();
+        
+        // Draw sight lines from eye to display corners
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = isSelected ? 'rgba(255, 165, 0, 0.3)' : 'rgba(128, 0, 128, 0.3)';
+        
+        // Top-left corner
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + displayCenterX - halfWidth, originY + displayCenterY - halfHeight);
+        ctx.stroke();
+        
+        // Top-right corner
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + displayCenterX + halfWidth, originY + displayCenterY - halfHeight);
+        ctx.stroke();
+        
+        // Bottom-left corner
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + displayCenterX - halfWidth, originY + displayCenterY + halfHeight);
+        ctx.stroke();
+        
+        // Bottom-right corner
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + displayCenterX + halfWidth, originY + displayCenterY + halfHeight);
+        ctx.stroke();
+      }
+      
+      // Label if selected
+      if (isSelected) {
+        ctx.fillStyle = 'rgba(255, 165, 0, 0.9)';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`Display ${selectedDisplayIndex + 1}`, originX + displayCenterX, originY + displayCenterY - 10);
+      }
     }
   }
   
@@ -611,20 +792,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Clear canvases
     topCtx.clearRect(0, 0, topViewCanvas.width, topViewCanvas.height);
     leftCtx.clearRect(0, 0, leftViewCanvas.width, leftViewCanvas.height);
+    frontCtx.clearRect(0, 0, frontViewCanvas.width, frontViewCanvas.height);
     
     // Draw coordinate systems
     drawCoordinateSystem(topCtx, 'top');
     drawCoordinateSystem(leftCtx, 'left');
+    drawCoordinateSystem(frontCtx, 'front');
     
     // Draw eye
     drawEye(topCtx, 'top');
     drawEye(leftCtx, 'left');
+    drawEye(frontCtx, 'front');
     
     // Draw all displays
     displays.forEach((display, index) => {
       const isSelected = index === selectedDisplayIndex;
       drawDisplay(topCtx, display, 'top', isSelected);
       drawDisplay(leftCtx, display, 'left', isSelected);
+      drawDisplay(frontCtx, display, 'front', isSelected);
     });
   }
   
@@ -647,6 +832,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  function changeFrontViewScale(factor) {
+    const newScale = frontViewScale * factor;
+    // Limit scaling to reasonable range
+    if (newScale >= DEFAULT_SCALE_FACTOR * 0.25 && newScale <= DEFAULT_SCALE_FACTOR * 4) {
+      frontViewScale = newScale;
+      render();
+    }
+  }
+  
   function resetTopViewScale() {
     topViewScale = DEFAULT_SCALE_FACTOR;
     render();
@@ -654,6 +848,11 @@ document.addEventListener('DOMContentLoaded', () => {
   
   function resetLeftViewScale() {
     leftViewScale = DEFAULT_SCALE_FACTOR;
+    render();
+  }
+  
+  function resetFrontViewScale() {
+    frontViewScale = DEFAULT_SCALE_FACTOR;
     render();
   }
   
@@ -708,6 +907,10 @@ document.addEventListener('DOMContentLoaded', () => {
   leftViewZoomIn.addEventListener('click', () => changeLeftViewScale(1.25));
   leftViewZoomOut.addEventListener('click', () => changeLeftViewScale(0.8));
   leftViewReset.addEventListener('click', resetLeftViewScale);
+
+  frontViewZoomIn.addEventListener('click', () => changeFrontViewScale(1.25));
+  frontViewZoomOut.addEventListener('click', () => changeFrontViewScale(0.8));
+  frontViewReset.addEventListener('click', resetFrontViewScale);
 
   // Add event listener for the new checkbox
   showAsRectanglesInput.addEventListener('change', render);
