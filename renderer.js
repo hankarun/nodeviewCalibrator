@@ -25,7 +25,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const updateDisplayBtn = document.getElementById('updateDisplayBtn');
   const displayListContainer = document.getElementById('displayList');
   const projectionResults = document.getElementById('projectionResults');
+  const presetSizeSelect = document.getElementById('presetSize');
   
+  // Display size presets (diagonal inches -> width & height in meters)
+  const displayPresets = {
+    "27": { width: 0.598, height: 0.336 },
+    "32": { width: 0.708, height: 0.398 },
+    "40": { width: 0.886, height: 0.498 },
+    "43": { width: 0.952, height: 0.535 },
+    "50": { width: 1.107, height: 0.623 },
+    "55": { width: 1.218, height: 0.685 },
+    "65": { width: 1.440, height: 0.810 },
+    "75": { width: 1.660, height: 0.934 }
+  };
+
+  // Set display dimensions when preset is selected
+  presetSizeSelect.addEventListener('change', function() {
+    const selectedSize = this.value;
+    if (selectedSize && displayPresets[selectedSize]) {
+      displayWidthInput.value = displayPresets[selectedSize].width;
+      displayHeightInput.value = displayPresets[selectedSize].height;
+    }
+  });
+
   // Store displays
   const displays = [];
   let selectedDisplayIndex = -1;
