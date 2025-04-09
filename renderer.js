@@ -684,6 +684,29 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     });
     
+    // Calculate center of display after rotation and translation
+    const displayCenter = {
+      x: x,
+      y: y,
+      z: z
+    };
+    
+    // Calculate distance from eye to display center
+    const eyeToDisplayDistance = Math.sqrt(
+      displayCenter.x * displayCenter.x + 
+      displayCenter.y * displayCenter.y + 
+      displayCenter.z * displayCenter.z
+    );
+    
+    // Calculate distances from eye to each corner
+    const cornerDistances = finalCorners.map(corner => {
+      return Math.sqrt(
+        corner.x * corner.x + 
+        corner.y * corner.y + 
+        corner.z * corner.z
+      );
+    });
+    
     // Calculate projection parameters for offcenter projection
     // These are angles from eye to each corner
     const anglesToCorners = finalCorners.map(corner => {
@@ -728,10 +751,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const bottomM = Math.min(normalizedCorners[2].y, normalizedCorners[3].y);
     const topM = Math.max(normalizedCorners[0].y, normalizedCorners[1].y);
     
+    // Calculate offcenter projection parameters
+    // These are the distances from eye to each edge of the display along the display's normal
+    const normalVector = { 
+      x: Math.sin(yawRad) * Math.cos(pitchRad), 
+      y: Math.sin(pitchRad), 
+      z: Math.cos(yawRad) * Math.cos(pitchRad) 
+    };
+    
+    // Calculate the distance from eye to the display plane along the normal
+    // This is the dot product of the normal and the vector from eye to display center
+    const normalDistance = 
+      displayCenter.x * normalVector.x + 
+      displayCenter.y * normalVector.y + 
+      displayCenter.z * normalVector.z;
+    
+    // For offcenter projection, we need the distance from eye to each corner
+    // projected onto the display's normal
+    const cornerProjectedDistances = finalCorners.map(corner => {
+      const vector = { x: corner.x, y: corner.y, z: corner.z };
+      return vector.x * normalVector.x + vector.y * normalVector.y + vector.z * normalVector.z;
+    });
+    
     return {
       corners: finalCorners,
       anglesToCorners,
       normalizedCorners,
+      eyeToDisplayDistance,
+      normalDistance,
+      cornerDistances,
+      cornerProjectedDistances,
       projection: {
         left,
         right,
@@ -817,11 +866,23 @@ document.addEventListener('DOMContentLoaded', () => {
       <div>Right: ${result.projection.right.toFixed(2)}°</div>
       <div>Bottom: ${result.projection.bottom.toFixed(2)}°</div>
       <div>Top: ${result.projection.top.toFixed(2)}°</div>
+      
+      <div>Offcenter Projection (distance from eye):</div>
+      <div>Eye to display center: ${result.eyeToDisplayDistance.toFixed(3)}m</div>
+      <div>Normal distance: ${result.normalDistance.toFixed(3)}m</div>
+      
+      <div>Corner distances (projected along normal):</div>
+      <div>Top-Left: ${result.cornerProjectedDistances[0].toFixed(3)}m</div>
+      <div>Top-Right: ${result.cornerProjectedDistances[1].toFixed(3)}m</div>
+      <div>Bottom-Left: ${result.cornerProjectedDistances[2].toFixed(3)}m</div>
+      <div>Bottom-Right: ${result.cornerProjectedDistances[3].toFixed(3)}m</div>
+      
       <div>Projection Corners (in meters at z=1):</div>
       <div>Left: ${result.projection.leftM.toFixed(3)}</div>
       <div>Right: ${result.projection.rightM.toFixed(3)}</div>
       <div>Bottom: ${result.projection.bottomM.toFixed(3)}</div>
       <div>Top: ${result.projection.topM.toFixed(3)}</div>
+      
       <div>Physical corners (meters from eye):</div>
       <div>Top-Left: (${result.corners[0].x.toFixed(2)}, ${result.corners[0].y.toFixed(2)}, ${result.corners[0].z.toFixed(2)})</div>
       <div>Top-Right: (${result.corners[1].x.toFixed(2)}, ${result.corners[1].y.toFixed(2)}, ${result.corners[1].z.toFixed(2)})</div>
