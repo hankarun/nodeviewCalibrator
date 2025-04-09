@@ -1,0 +1,18 @@
+{
+  "name": "nodeviewcalibrator",
+  "version": "1.0.0",
+  "description": "A blank Electron application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "electron"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^35.1.4"
+  }
+}
