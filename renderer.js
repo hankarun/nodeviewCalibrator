@@ -477,14 +477,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const bottom = Math.min(anglesToCorners[2].vertical, anglesToCorners[3].vertical);
     const top = Math.max(anglesToCorners[0].vertical, anglesToCorners[1].vertical);
     
+    // Calculate projection boundaries in meters at z=1 (unit distance)
+    // Using normalized corner positions instead of angle tangents for accurate values
+    // For each corner, project it to the z=1 plane by dividing x and y by z
+    const normalizedCorners = finalCorners.map(corner => {
+      // Only normalize if z is not 0 to avoid division by zero
+      if (Math.abs(corner.z) > 0.0001) {
+        return {
+          x: corner.x / corner.z,
+          y: corner.y / corner.z,
+          z: 1
+        };
+      } else {
+        // If z is close to 0, use a large value to represent "infinity"
+        return {
+          x: corner.x > 0 ? 1000 : -1000,
+          y: corner.y > 0 ? 1000 : -1000,
+          z: 1
+        };
+      }
+    });
+    
+    // Find the extents in the normalized space (these are the actual meters at z=1)
+    const leftM = Math.min(normalizedCorners[0].x, normalizedCorners[2].x);
+    const rightM = Math.max(normalizedCorners[1].x, normalizedCorners[3].x);
+    const bottomM = Math.min(normalizedCorners[2].y, normalizedCorners[3].y);
+    const topM = Math.max(normalizedCorners[0].y, normalizedCorners[1].y);
+    
     return {
       corners: finalCorners,
       anglesToCorners,
+      normalizedCorners,
       projection: {
         left,
         right,
         bottom,
-        top
+        top,
+        leftM,
+        rightM,
+        bottomM,
+        topM
       }
     };
   }
@@ -557,10 +589,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Format and display results
     projectionResults.innerHTML = `
       <div>Projection Corners (in degrees):</div>
-      <div>Left: ${result.projection.left.toFixed(2)}</div>
-      <div>Right: ${result.projection.right.toFixed(2)}</div>
-      <div>Bottom: ${result.projection.bottom.toFixed(2)}</div>
-      <div>Top: ${result.projection.top.toFixed(2)}</div>
+      <div>Left: ${result.projection.left.toFixed(2)}°</div>
+      <div>Right: ${result.projection.right.toFixed(2)}°</div>
+      <div>Bottom: ${result.projection.bottom.toFixed(2)}°</div>
+      <div>Top: ${result.projection.top.toFixed(2)}°</div>
+      <div>Projection Corners (in meters at z=1):</div>
+      <div>Left: ${result.projection.leftM.toFixed(3)}</div>
+      <div>Right: ${result.projection.rightM.toFixed(3)}</div>
+      <div>Bottom: ${result.projection.bottomM.toFixed(3)}</div>
+      <div>Top: ${result.projection.topM.toFixed(3)}</div>
       <div>Physical corners (meters from eye):</div>
       <div>Top-Left: (${result.corners[0].x.toFixed(2)}, ${result.corners[0].y.toFixed(2)}, ${result.corners[0].z.toFixed(2)})</div>
       <div>Top-Right: (${result.corners[1].x.toFixed(2)}, ${result.corners[1].y.toFixed(2)}, ${result.corners[1].z.toFixed(2)})</div>
