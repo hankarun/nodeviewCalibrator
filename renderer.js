@@ -347,19 +347,29 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.closePath();
         ctx.stroke();
         
-        // Fill with semi-transparent color
-        ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.2)' : 'rgba(0, 128, 0, 0.1)';
+        // Fill with semi-transparent color - increase opacity for better visibility
+        ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.3)' : 'rgba(0, 128, 0, 0.2)';
         ctx.fill();
         
         // Draw sight lines from eye to corners
         ctx.lineWidth = 0.5;
-        ctx.strokeStyle = isSelected ? 'rgba(255, 165, 0, 0.3)' : 'rgba(0, 128, 0, 0.3)';
+        ctx.strokeStyle = isSelected ? 'rgba(255, 165, 0, 0.5)' : 'rgba(0, 128, 0, 0.5)';
         for (const corner of leftViewCorners) {
           ctx.beginPath();
           ctx.moveTo(originX, originY);
           ctx.lineTo(corner.x, corner.y);
           ctx.stroke();
         }
+        
+        // Draw a center point on the display to make it more visible
+        ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.9)' : 'rgba(0, 128, 0, 0.9)';
+        ctx.beginPath();
+        const centerPoint = {
+          x: originX + displayCenterZ,
+          y: originY + displayCenterY
+        };
+        ctx.arc(centerPoint.x, centerPoint.y, 3, 0, Math.PI * 2);
+        ctx.fill();
       } else {
         // Original line-based drawing for left view
         const halfHeight = height * scale / 2;
