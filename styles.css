@@ -112,6 +112,7 @@ button:disabled {
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   flex: 1;
   min-width: 300px;
+  text-align: center;
 }
 
 h3 {
@@ -125,6 +126,9 @@ canvas {
   border: 1px solid #ddd;
   display: block;
   margin: 0 auto;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
 }
 
 #projectionResults {

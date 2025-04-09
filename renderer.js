@@ -73,6 +73,40 @@ document.addEventListener('DOMContentLoaded', () => {
   let leftViewScale = DEFAULT_SCALE_FACTOR;
   let frontViewScale = DEFAULT_SCALE_FACTOR;
   
+  // Initialize canvases with correct dimensions
+  function resizeCanvases() {
+    // Function to set canvas dimensions based on its container
+    function setCanvasDimensions(canvas) {
+      const container = canvas.parentElement;
+      const containerWidth = container.clientWidth - 30; // Account for padding
+      const aspectRatio = 3/4; // Height is 3/4 of width (or 4/3 width to height)
+      
+      // Set dimensions based on container width, maintaining aspect ratio
+      canvas.width = Math.min(containerWidth, 400); // Max width of 400px
+      canvas.height = canvas.width * aspectRatio;
+      
+      // Set CSS dimensions to match the canvas dimensions
+      canvas.style.width = canvas.width + 'px';
+      canvas.style.height = canvas.height + 'px';
+    }
+    
+    // Apply to all canvases
+    setCanvasDimensions(topViewCanvas);
+    setCanvasDimensions(leftViewCanvas);
+    setCanvasDimensions(frontViewCanvas);
+    
+    // Re-render after resize
+    render();
+  }
+  
+  // Call resize on load
+  resizeCanvases();
+  
+  // Handle window resize events
+  window.addEventListener('resize', () => {
+    resizeCanvases();
+  });
+
   // Draw eye position
   function drawEye(ctx, viewType) {
     ctx.fillStyle = 'red';
