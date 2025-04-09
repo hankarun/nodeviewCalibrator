@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-04-09T14:02:43.208Z",
+  "displays": [
+    {
+      "width": 0.5,
+      "height": 0.3,
+      "distance": 0.7,
+      "yaw": 0,
+      "pitch": 0,
+      "roll": 0,
+      "x": 0,
+      "y": 0,
+      "z": 0.7
+    },
+    {
+      "width": 1.44,
+      "height": 0.81,
+      "distance": 0.7,
+      "yaw": 0,
+      "pitch": 0,
+      "roll": 0,
+      "x": 0,
+      "y": 0,
+      "z": 0.7
+    }
+  ]
+}
