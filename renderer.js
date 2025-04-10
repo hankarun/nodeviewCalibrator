@@ -1,8 +1,8 @@
 // This file handles all the client-side JavaScript logic
 // You can interact with the DOM and implement UI logic here
 
-// Import math utility functions
-import { calculateNearestPointOnPlane, calculateProjectionCorners } from './mathutils.js';
+// Import display-related functions
+import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from './display.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Electron application loaded successfully!');
@@ -53,18 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Current file path for save operations
   let currentFilePath = null;
-
-  // Display size presets (diagonal inches -> width & height in meters)
-  const displayPresets = {
-    "27": { width: 0.598, height: 0.336 },
-    "32": { width: 0.708, height: 0.398 },
-    "40": { width: 0.886, height: 0.498 },
-    "43": { width: 0.952, height: 0.535 },
-    "50": { width: 1.107, height: 0.623 },
-    "55": { width: 1.218, height: 0.685 },
-    "65": { width: 1.440, height: 0.810 },
-    "75": { width: 1.660, height: 0.934 }
-  };
 
   // Set display dimensions when preset is selected
   presetSizeSelect.addEventListener('change', function() {
@@ -777,37 +765,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Show calculations for the display
   function showDisplayCalculations(display) {
-    const result = calculateProjectionCorners(display);
-    const nearestPoint = result.offcenterProjection.nearestPoint;
-    
-    // Add the nearest point to results display
-    projectionResults.innerHTML = `
-      <div>Projection Corners (in degrees):</div>
-      <div>Left: ${result.projection.left.toFixed(2)}°</div>
-      <div>Right: ${result.projection.right.toFixed(2)}°</div>
-      <div>Bottom: ${result.projection.bottom.toFixed(2)}°</div>
-      <div>Top: ${result.projection.top.toFixed(2)}°</div>
-      
-      <div>Offcenter Projection Parameters:</div>
-      <div>Eye to nearest point: ${nearestPoint.distance.toFixed(3)}m</div>
-      <div>Horizontal FOV: ${result.offcenterProjection.fovHorizontal.toFixed(2)}°</div>
-      <div>Vertical FOV: ${result.offcenterProjection.fovVertical.toFixed(2)}°</div>
-      <div>Horizontal asymmetry: ${result.offcenterProjection.horizontalAsymmetry.toFixed(3)}</div>
-      <div>Vertical asymmetry: ${result.offcenterProjection.verticalAsymmetry.toFixed(3)}</div>
-      
-      <div>Nearest Point on Plane:</div>
-      <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
-      <div>Normal: (${nearestPoint.normal.x.toFixed(3)}, ${nearestPoint.normal.y.toFixed(3)}, ${nearestPoint.normal.z.toFixed(3)})</div>
-      
-      <div>Corner vectors from nearest point:</div>
-      <div>Top-Left: (${result.cornersRelativeToNearest[0].x.toFixed(3)}, ${result.cornersRelativeToNearest[0].y.toFixed(3)}, ${result.cornersRelativeToNearest[0].z.toFixed(3)})</div>
-      <div>Top-Right: (${result.cornersRelativeToNearest[1].x.toFixed(3)}, ${result.cornersRelativeToNearest[1].y.toFixed(3)}, ${result.cornersRelativeToNearest[1].z.toFixed(3)})</div>
-      <div>Bottom-Left: (${result.cornersRelativeToNearest[2].x.toFixed(3)}, ${result.cornersRelativeToNearest[2].y.toFixed(3)}, ${result.cornersRelativeToNearest[2].z.toFixed(3)})</div>
-      <div>Bottom-Right: (${result.cornersRelativeToNearest[3].x.toFixed(3)}, ${result.cornersRelativeToNearest[3].y.toFixed(3)}, ${result.cornersRelativeToNearest[3].z.toFixed(3)})</div>
-    `;
-    
-    // Store the nearest point in the display object for rendering
-    display.nearestPoint = nearestPoint;
+    const result = calculateDisplayProjection(display);
+    projectionResults.innerHTML = formatDisplayCalculations(result);
   }
   
   // Render everything
@@ -879,19 +838,19 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   }
   
-  // Create a new display from input values
-  function createDisplayFromInputs() {
-    return {
-      width: parseFloat(displayWidthInput.value),
-      height: parseFloat(displayHeightInput.value),
-      distance: parseFloat(displayDistanceInput.value), // Keep for backwards compatibility
-      yaw: parseFloat(displayAngleInput.value),
-      pitch: parseFloat(displayPitchInput.value),
-      roll: parseFloat(displayRollInput.value),
-      x: parseFloat(displayOffsetXInput.value),
-      y: parseFloat(displayOffsetYInput.value),
-      z: parseFloat(displayOffsetZInput.value)
-    };
+  // Create a new display from input values (renamed to avoid conflict with imported function)
+  function getDisplayFromInputs() {
+    return createDisplayFromInputs({
+      width: displayWidthInput.value,
+      height: displayHeightInput.value,
+      distance: displayDistanceInput.value,
+      yaw: displayAngleInput.value,
+      pitch: displayPitchInput.value,
+      roll: displayRollInput.value,
+      x: displayOffsetXInput.value,
+      y: displayOffsetYInput.value,
+      z: displayOffsetZInput.value
+    });
   }
   
   // File Operation Functions
@@ -1062,13 +1021,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Add event listeners
   calculateBtn.addEventListener('click', () => {
-    const display = createDisplayFromInputs();
+    const display = getDisplayFromInputs();
     showDisplayCalculations(display);
     render();
   });
   
   addDisplayBtn.addEventListener('click', () => {
-    const display = createDisplayFromInputs();
+    const display = getDisplayFromInputs();
     displays.push(display);
     selectDisplay(displays.length - 1); // Select the newly added display
     updateDisplayList();
@@ -1077,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   updateDisplayBtn.addEventListener('click', () => {
     if (selectedDisplayIndex >= 0) {
-      displays[selectedDisplayIndex] = createDisplayFromInputs();
+      displays[selectedDisplayIndex] = getDisplayFromInputs();
       showDisplayCalculations(displays[selectedDisplayIndex]);
       updateDisplayList();
       render();
