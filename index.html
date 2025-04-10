@@ -19,6 +19,13 @@
     </div>
     
     <div class="control-panel">
+      <div class="display-list-panel">
+        <h2>Display List</h2>
+        <div id="displayList" class="display-list">
+          <div class="empty-list-message">No displays added yet</div>
+        </div>
+      </div>
+
       <div class="input-group">
         <h2>Display Settings</h2>
         <div class="input-row">
@@ -76,17 +83,9 @@
           <input type="checkbox" id="showAsRectangles" checked>
         </div>
         <div class="button-row">
-          <button id="calculateBtn">Calculate</button>
           <button id="addDisplayBtn">Add Display</button>
           <button id="updateDisplayBtn" disabled>Update Display</button>
           <button id="deleteDisplayBtn" disabled>Delete Display</button>
-        </div>
-      </div>
-      
-      <div class="display-list-panel">
-        <h2>Display List</h2>
-        <div id="displayList" class="display-list">
-          <div class="empty-list-message">No displays added yet</div>
         </div>
       </div>
       

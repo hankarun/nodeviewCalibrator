@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const displayOffsetXInput = document.getElementById('displayOffsetX');
   const displayOffsetYInput = document.getElementById('displayOffsetY');
   const displayOffsetZInput = document.getElementById('displayOffsetZ');
-  const calculateBtn = document.getElementById('calculateBtn');
   const addDisplayBtn = document.getElementById('addDisplayBtn');
   const updateDisplayBtn = document.getElementById('updateDisplayBtn');
   const deleteDisplayBtn = document.getElementById('deleteDisplayBtn');
@@ -377,13 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
   render();
   updateDisplayList();
   
-  // Add event listeners
-  calculateBtn.addEventListener('click', () => {
-    const display = getDisplayFromInputs();
-    showDisplayCalculations(display);
-    render();
-  });
-  
+ 
   addDisplayBtn.addEventListener('click', () => {
     const display = getDisplayFromInputs();
     displays.push(display);
