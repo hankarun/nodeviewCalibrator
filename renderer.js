@@ -708,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  // Calculate offcenter projection corners
+  // Function to calculate offcenter projection parameters based on nearest point
   function calculateProjectionCorners(display) {
     const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
     
@@ -717,11 +717,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const pitchRad = pitch * Math.PI / 180;
     const rollRad = roll * Math.PI / 180;
     
+    // First, calculate the nearest point on the plane
+    const nearestPoint = calculateNearestPointOnPlane(display);
+    
     // Calculate corners in display space
     const halfWidth = width / 2;
     const halfHeight = height / 2;
     
-    // Top-left, top-right, bottom-left, bottom-right (in display local space)
+    // Top-left, top-right, bottom-right, bottom-left (in display local space)
     const corners = [
       { x: -halfWidth, y: halfHeight, z: 0 },
       { x: halfWidth, y: halfHeight, z: 0 },
@@ -729,9 +732,9 @@ document.addEventListener('DOMContentLoaded', () => {
       { x: halfWidth, y: -halfHeight, z: 0 }
     ];
     
-    // Apply rotations (yaw, pitch, roll)
+    // Apply rotations (roll, pitch, yaw in that order)
     const rotatedCorners = corners.map(corner => {
-      // First apply roll (around Z)
+      // Apply roll (around Z)
       let x1 = corner.x * Math.cos(rollRad) - corner.y * Math.sin(rollRad);
       let y1 = corner.x * Math.sin(rollRad) + corner.y * Math.cos(rollRad);
       let z1 = corner.z;
@@ -758,12 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     });
     
-    // Calculate center of display after rotation and translation
-    const displayCenter = {
-      x: x,
-      y: y,
-      z: z
-    };
+    // Calculate display center position after rotation and translation
+    const displayCenter = { x, y, z };
     
     // Calculate distance from eye to display center
     const eyeToDisplayDistance = Math.sqrt(
@@ -771,6 +770,15 @@ document.addEventListener('DOMContentLoaded', () => {
       displayCenter.y * displayCenter.y + 
       displayCenter.z * displayCenter.z
     );
+    
+    // Calculate vectors from nearest point to each corner
+    const cornersRelativeToNearest = finalCorners.map(corner => {
+      return {
+        x: corner.x - nearestPoint.x,
+        y: corner.y - nearestPoint.y,
+        z: corner.z - nearestPoint.z
+      };
+    });
     
     // Calculate distances from eye to each corner
     const cornerDistances = finalCorners.map(corner => {
@@ -781,39 +789,46 @@ document.addEventListener('DOMContentLoaded', () => {
       );
     });
     
-    // Calculate projection parameters for offcenter projection
-    // These are angles from eye to each corner
-    const anglesToCorners = finalCorners.map(corner => {
-      const distance = Math.sqrt(corner.x * corner.x + corner.y * corner.y + corner.z * corner.z);
+    // Calculate vectors from eye to each corner
+    const eyeToCornerVectors = finalCorners.map(corner => {
       return {
-        horizontal: Math.atan2(corner.x, corner.z) * 180 / Math.PI,
-        vertical: Math.atan2(corner.y, corner.z) * 180 / Math.PI,
+        x: corner.x,
+        y: corner.y,
+        z: corner.z
+      };
+    });
+    
+    // Calculate angles from eye to each corner
+    const anglesToCorners = eyeToCornerVectors.map(vector => {
+      const distance = Math.sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+      return {
+        horizontal: Math.atan2(vector.x, vector.z) * 180 / Math.PI,
+        vertical: Math.atan2(vector.y, vector.z) * 180 / Math.PI,
         distance
       };
     });
     
-    // Find the extents of these angles
+    // Find the extents of these angles for the offcenter projection
     const left = Math.min(anglesToCorners[0].horizontal, anglesToCorners[2].horizontal);
     const right = Math.max(anglesToCorners[1].horizontal, anglesToCorners[3].horizontal);
     const bottom = Math.min(anglesToCorners[2].vertical, anglesToCorners[3].vertical);
     const top = Math.max(anglesToCorners[0].vertical, anglesToCorners[1].vertical);
     
-    // Calculate projection boundaries in meters at z=1 (unit distance)
-    // Using normalized corner positions instead of angle tangents for accurate values
-    // For each corner, project it to the z=1 plane by dividing x and y by z
-    const normalizedCorners = finalCorners.map(corner => {
+    // Calculate offcenter projection parameters with respect to the nearest point
+    // Project corner vectors to a plane at distance 1 from the eye
+    const normalizedCorners = eyeToCornerVectors.map(vector => {
       // Only normalize if z is not 0 to avoid division by zero
-      if (Math.abs(corner.z) > 0.0001) {
+      if (Math.abs(vector.z) > 0.0001) {
         return {
-          x: corner.x / corner.z,
-          y: corner.y / corner.z,
+          x: vector.x / vector.z,
+          y: vector.y / vector.z,
           z: 1
         };
       } else {
         // If z is close to 0, use a large value to represent "infinity"
         return {
-          x: corner.x > 0 ? 1000 : -1000,
-          y: corner.y > 0 ? 1000 : -1000,
+          x: vector.x > 0 ? 1000 : -1000,
+          y: vector.y > 0 ? 1000 : -1000,
           z: 1
         };
       }
@@ -825,36 +840,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const bottomM = Math.min(normalizedCorners[2].y, normalizedCorners[3].y);
     const topM = Math.max(normalizedCorners[0].y, normalizedCorners[1].y);
     
-    // Calculate offcenter projection parameters
-    // These are the distances from eye to each edge of the display along the display's normal
-    const normalVector = { 
-      x: Math.sin(yawRad) * Math.cos(pitchRad), 
-      y: Math.sin(pitchRad), 
-      z: Math.cos(yawRad) * Math.cos(pitchRad) 
-    };
+    // Calculate the distance from eye to nearest point
+    const eyeToNearestDistance = nearestPoint.distance;
     
-    // Calculate the distance from eye to the display plane along the normal
-    // This is the dot product of the normal and the vector from eye to display center
-    const normalDistance = 
-      displayCenter.x * normalVector.x + 
-      displayCenter.y * normalVector.y + 
-      displayCenter.z * normalVector.z;
-    
-    // For offcenter projection, we need the distance from eye to each corner
-    // projected onto the display's normal
+    // Calculate the projection of each corner onto the normal vector
     const cornerProjectedDistances = finalCorners.map(corner => {
-      const vector = { x: corner.x, y: corner.y, z: corner.z };
-      return vector.x * normalVector.x + vector.y * normalVector.y + vector.z * normalVector.z;
+      return corner.x * nearestPoint.normal.x + 
+             corner.y * nearestPoint.normal.y + 
+             corner.z * nearestPoint.normal.z;
     });
+    
+    // Calculate offcenter projection based on the nearest point
+    const offcenterProjection = {
+      // Position of the nearest point (eye's perpendicular projection onto the plane)
+      nearestPoint: nearestPoint,
+      
+      // Corners positions relative to the nearest point
+      cornersRelativeToNearest: cornersRelativeToNearest,
+      
+      // Distance from eye to nearest point
+      eyeToNearestDistance: eyeToNearestDistance,
+      
+      // Eye to display center distance (for reference)
+      eyeToDisplayDistance: eyeToDisplayDistance,
+      
+      // Field of view angles (from eye's perspective)
+      fovHorizontal: right - left,
+      fovVertical: top - bottom,
+      
+      // Asymmetry ratios (for offcenter projection)
+      // These values show how much the projection is offset from center
+      horizontalAsymmetry: (right + left) / (right - left),
+      verticalAsymmetry: (top + bottom) / (top - bottom)
+    };
     
     return {
       corners: finalCorners,
       anglesToCorners,
       normalizedCorners,
       eyeToDisplayDistance,
-      normalDistance,
+      normalDistance: nearestPoint.distance,
       cornerDistances,
       cornerProjectedDistances,
+      cornersRelativeToNearest,
+      offcenterProjection,
       projection: {
         left,
         right,
@@ -980,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Show calculations for the display
   function showDisplayCalculations(display) {
     const result = calculateProjectionCorners(display);
-    const nearestPoint = calculateNearestPointOnPlane(display);
+    const nearestPoint = result.offcenterProjection.nearestPoint;
     
     // Add the nearest point to results display
     projectionResults.innerHTML = `
@@ -990,21 +1019,22 @@ document.addEventListener('DOMContentLoaded', () => {
       <div>Bottom: ${result.projection.bottom.toFixed(2)}°</div>
       <div>Top: ${result.projection.top.toFixed(2)}°</div>
       
-      <div>Offcenter Projection (distance from eye):</div>
-      <div>Eye to display center: ${result.eyeToDisplayDistance.toFixed(3)}m</div>
-      <div>Normal distance: ${result.normalDistance.toFixed(3)}m</div>
+      <div>Offcenter Projection Parameters:</div>
+      <div>Eye to nearest point: ${nearestPoint.distance.toFixed(3)}m</div>
+      <div>Horizontal FOV: ${result.offcenterProjection.fovHorizontal.toFixed(2)}°</div>
+      <div>Vertical FOV: ${result.offcenterProjection.fovVertical.toFixed(2)}°</div>
+      <div>Horizontal asymmetry: ${result.offcenterProjection.horizontalAsymmetry.toFixed(3)}</div>
+      <div>Vertical asymmetry: ${result.offcenterProjection.verticalAsymmetry.toFixed(3)}</div>
       
       <div>Nearest Point on Plane:</div>
       <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
-      <div>Distance: ${nearestPoint.distance.toFixed(3)}m</div>
+      <div>Normal: (${nearestPoint.normal.x.toFixed(3)}, ${nearestPoint.normal.y.toFixed(3)}, ${nearestPoint.normal.z.toFixed(3)})</div>
       
-      <div>Corner distances (projected along normal):</div>
-      <div>Top-Left: ${result.cornerProjectedDistances[0].toFixed(3)}m</div>
-      <div>Top-Right: ${result.cornerProjectedDistances[1].toFixed(3)}m</div>
-      <div>Bottom-Left: ${result.cornerProjectedDistances[2].toFixed(3)}m</div>
-      <div>Bottom-Right: ${result.cornerProjectedDistances[3].toFixed(3)}m</div>
-      
-      <!-- Rest of the existing output -->
+      <div>Corner vectors from nearest point:</div>
+      <div>Top-Left: (${result.cornersRelativeToNearest[0].x.toFixed(3)}, ${result.cornersRelativeToNearest[0].y.toFixed(3)}, ${result.cornersRelativeToNearest[0].z.toFixed(3)})</div>
+      <div>Top-Right: (${result.cornersRelativeToNearest[1].x.toFixed(3)}, ${result.cornersRelativeToNearest[1].y.toFixed(3)}, ${result.cornersRelativeToNearest[1].z.toFixed(3)})</div>
+      <div>Bottom-Left: (${result.cornersRelativeToNearest[2].x.toFixed(3)}, ${result.cornersRelativeToNearest[2].y.toFixed(3)}, ${result.cornersRelativeToNearest[2].z.toFixed(3)})</div>
+      <div>Bottom-Right: (${result.cornersRelativeToNearest[3].x.toFixed(3)}, ${result.cornersRelativeToNearest[3].y.toFixed(3)}, ${result.cornersRelativeToNearest[3].z.toFixed(3)})</div>
     `;
     
     // Store the nearest point in the display object for rendering
