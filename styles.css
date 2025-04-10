@@ -98,6 +98,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
+#deleteDisplayBtn {
+  background-color: #f44336;
+}
+
+#deleteDisplayBtn:hover {
+  background-color: #d32f2f;
+}
+
+#deleteDisplayBtn:disabled {
+  background-color: #cccccc;
+}
+
 .visualization {
   display: flex;
   gap: 20px;

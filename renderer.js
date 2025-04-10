@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const calculateBtn = document.getElementById('calculateBtn');
   const addDisplayBtn = document.getElementById('addDisplayBtn');
   const updateDisplayBtn = document.getElementById('updateDisplayBtn');
+  const deleteDisplayBtn = document.getElementById('deleteDisplayBtn');
   const displayListContainer = document.getElementById('displayList');
   const projectionResults = document.getElementById('projectionResults');
   const presetSizeSelect = document.getElementById('presetSize');
@@ -758,14 +759,16 @@ document.addEventListener('DOMContentLoaded', () => {
       displayOffsetYInput.value = display.y;
       displayOffsetZInput.value = display.z;
       
-      // Enable update button
+      // Enable update and delete buttons
       updateDisplayBtn.disabled = false;
+      deleteDisplayBtn.disabled = false;
       
       // Show calculations for the selected display
       showDisplayCalculations(display);
     } else {
-      // Disable update button when no display is selected
+      // Disable update and delete buttons when no display is selected
       updateDisplayBtn.disabled = true;
+      deleteDisplayBtn.disabled = true;
     }
     
     // Re-render
@@ -1016,6 +1019,43 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
   
+  // Delete the currently selected display
+  function deleteDisplay() {
+    if (selectedDisplayIndex < 0) return;
+    
+    // Show a confirmation dialog
+    if (confirm(`Are you sure you want to delete Display ${selectedDisplayIndex + 1}?`)) {
+      // Remove the display from the array
+      displays.splice(selectedDisplayIndex, 1);
+      
+      // Update the selected index
+      if (displays.length === 0) {
+        // No more displays left
+        selectedDisplayIndex = -1;
+      } else if (selectedDisplayIndex >= displays.length) {
+        // If we deleted the last display, select the new last one
+        selectedDisplayIndex = displays.length - 1;
+      }
+      // Otherwise keep the same index which now points to the next display
+      
+      // Update UI
+      updateDisplayList();
+      
+      if (selectedDisplayIndex >= 0) {
+        // Select the new display at this index
+        selectDisplay(selectedDisplayIndex);
+      } else {
+        // No displays left, clear the form
+        updateDisplayBtn.disabled = true;
+        deleteDisplayBtn.disabled = true;
+        projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
+      }
+      
+      // Re-render
+      render();
+    }
+  }
+  
   // Initialize
   render();
   updateDisplayList();
@@ -1043,6 +1083,8 @@ document.addEventListener('DOMContentLoaded', () => {
       render();
     }
   });
+  
+  deleteDisplayBtn.addEventListener('click', deleteDisplay);
   
   // Add scale button event listeners
   topViewZoomIn.addEventListener('click', () => changeTopViewScale(1.25));
