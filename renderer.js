@@ -5,6 +5,8 @@
 import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from './display.js';
 // Import canvas drawing functions
 import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions } from './canvasRenderer.js';
+// Import file operations
+import { openConfigFile, saveConfig, saveConfigAs } from './fileOperations.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Electron application loaded successfully!');
@@ -253,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // File Operation Functions
   
   // Create new configuration
-  function createNewConfig() {
+  function handleNewConfig() {
     // Confirm if there are unsaved changes
     if (displays.length > 0) {
       if (!confirm('Creating a new configuration will clear all current displays. Continue?')) {
@@ -276,102 +278,61 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   // Open configuration from file
-  function openConfigFile() {
-    // Using Electron's dialog via IPC
-    window.electronAPI.openFile()
+  function handleOpenConfigFile() {
+    openConfigFile()
       .then(result => {
-        if (!result.canceled && result.filePaths.length > 0) {
-          const filePath = result.filePaths[0];
-          
-          // Read file content
-          window.electronAPI.readFile(filePath)
-            .then(content => {
-              try {
-                const config = JSON.parse(content);
-                
-                // Validate the config has the displays array
-                if (Array.isArray(config.displays)) {
-                  // Load the configuration
-                  displays.length = 0;
-                  displays.push(...config.displays);
-                  currentFilePath = filePath;
-                  
-                  // Update UI
-                  updateDisplayList();
-                  
-                  // Select first display if available
-                  if (displays.length > 0) {
-                    selectDisplay(0);
-                  } else {
-                    selectedDisplayIndex = -1;
-                    updateDisplayBtn.disabled = true;
-                    projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
-                  }
-                  
-                  // Re-render
-                  render();
-                } else {
-                  throw new Error('Invalid configuration file format');
-                }
-              } catch (error) {
-                alert(`Error loading configuration: ${error.message}`);
-              }
-            })
-            .catch(error => {
-              alert(`Error reading file: ${error.message}`);
-            });
+        if (result.canceled) return;
+        
+        // Load the configuration
+        displays.length = 0;
+        displays.push(...result.config.displays);
+        currentFilePath = result.filePath;
+        
+        // Update UI
+        updateDisplayList();
+        
+        // Select first display if available
+        if (displays.length > 0) {
+          selectDisplay(0);
+        } else {
+          selectedDisplayIndex = -1;
+          updateDisplayBtn.disabled = true;
+          projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
         }
+        
+        // Re-render
+        render();
       })
       .catch(error => {
-        alert(`Error opening file dialog: ${error.message}`);
+        alert(error.message);
       });
   }
   
   // Save configuration to current file
-  function saveConfig() {
-    if (currentFilePath) {
-      // We already have a file path, just save
-      saveConfigToFile(currentFilePath);
-    } else {
-      // No current file path, use Save As instead
-      saveConfigAs();
-    }
-  }
-  
-  // Save configuration with new filename
-  function saveConfigAs() {
-    // Using Electron's dialog via IPC
-    window.electronAPI.saveFile()
+  function handleSaveConfig() {
+    saveConfig(displays, currentFilePath)
       .then(result => {
-        if (!result.canceled && result.filePath) {
-          saveConfigToFile(result.filePath);
+        if (!result.canceled) {
+          currentFilePath = result.filePath;
+          alert('Configuration saved successfully!');
         }
       })
       .catch(error => {
-        alert(`Error opening save dialog: ${error.message}`);
+        alert(error.message);
       });
   }
   
-  // Helper function to save to a specific file
-  function saveConfigToFile(filePath) {
-    // Prepare data to save
-    const configData = {
-      version: '1.0',
-      timestamp: new Date().toISOString(),
-      displays: displays
-    };
-    
-    // Convert to JSON string
-    const content = JSON.stringify(configData, null, 2);
-    
-    // Write to file
-    window.electronAPI.writeFile(filePath, content)
-      .then(() => {
-        currentFilePath = filePath;
-        alert('Configuration saved successfully!');
+  // Save configuration with new filename
+  function handleSaveConfigAs() {
+    saveConfigAs(displays)
+      .then(result => {
+        if (!result.canceled) {
+          currentFilePath = result.filePath;
+          alert('Configuration saved successfully!');
+        }
       })
       .catch(error => {
-        alert(`Error saving file: ${error.message}`);
+        alert(error.message);
       });
   }
   
@@ -459,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
   showAsRectanglesInput.addEventListener('change', render);
 
   // File operation button event listeners
-  newConfigBtn.addEventListener('click', createNewConfig);
-  openConfigBtn.addEventListener('click', openConfigFile);
-  saveConfigBtn.addEventListener('click', saveConfig);
-  saveAsConfigBtn.addEventListener('click', saveConfigAs);
+  newConfigBtn.addEventListener('click', handleNewConfig);
+  openConfigBtn.addEventListener('click', handleOpenConfigFile);
+  saveConfigBtn.addEventListener('click', handleSaveConfig);
+  saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
 });
