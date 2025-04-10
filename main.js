@@ -14,6 +14,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -22,7 +23,7 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   // Open DevTools (comment this out for production)
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
 
   // Emitted when the window is closed
   mainWindow.on('closed', function() {
