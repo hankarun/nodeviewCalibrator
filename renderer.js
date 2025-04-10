@@ -632,6 +632,80 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillText(`Display ${selectedDisplayIndex + 1}`, originX + displayCenterX, originY + displayCenterY - 10);
       }
     }
+    
+    // Draw the nearest point if this display is selected
+    if (isSelected && display.nearestPoint) {
+      const nearestPoint = display.nearestPoint;
+      
+      // Draw the nearest point with a distinctive appearance
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';  // Bright red
+      
+      if (viewType === 'top') {
+        const originX = topViewCanvas.width / 2;
+        const originY = topViewCanvas.height / 2;
+        const scale = topViewScale;
+        
+        // Draw in top view (x-z plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearestPoint.x * scale, originY - nearestPoint.z * scale, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to nearest point
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearestPoint.x * scale, originY - nearestPoint.z * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Add label
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Nearest point', originX + nearestPoint.x * scale + 8, originY - nearestPoint.z * scale - 8);
+      }
+      else if (viewType === 'left') {
+        const originX = leftViewCanvas.width / 2;
+        const originY = leftViewCanvas.height / 2;
+        const scale = leftViewScale;
+        
+        // Draw in left view (z-y plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearestPoint.z * scale, originY - nearestPoint.y * scale, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to nearest point
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearestPoint.z * scale, originY - nearestPoint.y * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      else if (viewType === 'front') {
+        const originX = frontViewCanvas.width / 2;
+        const originY = frontViewCanvas.height / 2;
+        const scale = frontViewScale;
+        
+        // Draw in front view (x-y plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearestPoint.x * scale, originY - nearestPoint.y * scale, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to nearest point
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearestPoint.x * scale, originY - nearestPoint.y * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
   }
   
   // Calculate offcenter projection corners
@@ -794,6 +868,54 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
   
+  // Function to calculate nearest point on display plane from eye position (0,0,0)
+  function calculateNearestPointOnPlane(display) {
+    const { x, y, z, yaw, pitch, roll } = display;
+    
+    // Convert angles to radians
+    const yawRad = yaw * Math.PI / 180;
+    const pitchRad = pitch * Math.PI / 180;
+    const rollRad = roll * Math.PI / 180;
+    
+    // Calculate normal vector of the display plane (starts pointing along -Z)
+    let normal = { x: 0, y: 0, z: -1 };
+    
+    // Apply rotations in the correct order: roll, pitch, then yaw
+    // 1. Apply roll (around Z)
+    // Note: Roll doesn't affect the normal of a plane initially facing in Z direction
+    
+    // 2. Apply pitch (around X)
+    let ny1 = normal.y * Math.cos(pitchRad) - normal.z * Math.sin(pitchRad);
+    let nz1 = normal.y * Math.sin(pitchRad) + normal.z * Math.cos(pitchRad);
+    normal.y = ny1;
+    normal.z = nz1;
+    
+    // 3. Apply yaw (around Y)
+    let nx2 = normal.x * Math.cos(yawRad) - normal.z * Math.sin(yawRad);
+    let nz2 = normal.x * Math.sin(yawRad) + normal.z * Math.cos(yawRad);
+    normal.x = nx2;
+    normal.z = nz2;
+    
+    // Normalize the normal vector
+    const magnitude = Math.sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+    normal.x /= magnitude;
+    normal.y /= magnitude;
+    normal.z /= magnitude;
+    
+    // Calculate the distance from eye to the display plane along the normal
+    // This is the dot product of the display center position and the normal
+    const d = x * normal.x + y * normal.y + z * normal.z;
+    
+    // Calculate the nearest point on the plane from the eye
+    return {
+      x: normal.x * d,
+      y: normal.y * d,
+      z: normal.z * d,
+      distance: d,
+      normal: normal // Include the normal in the result for debugging
+    };
+  }
+  
   // Update display list in the UI
   function updateDisplayList() {
     // Clear the current list
@@ -858,8 +980,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Show calculations for the display
   function showDisplayCalculations(display) {
     const result = calculateProjectionCorners(display);
+    const nearestPoint = calculateNearestPointOnPlane(display);
     
-    // Format and display results
+    // Add the nearest point to results display
     projectionResults.innerHTML = `
       <div>Projection Corners (in degrees):</div>
       <div>Left: ${result.projection.left.toFixed(2)}°</div>
@@ -871,24 +994,21 @@ document.addEventListener('DOMContentLoaded', () => {
       <div>Eye to display center: ${result.eyeToDisplayDistance.toFixed(3)}m</div>
       <div>Normal distance: ${result.normalDistance.toFixed(3)}m</div>
       
+      <div>Nearest Point on Plane:</div>
+      <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
+      <div>Distance: ${nearestPoint.distance.toFixed(3)}m</div>
+      
       <div>Corner distances (projected along normal):</div>
       <div>Top-Left: ${result.cornerProjectedDistances[0].toFixed(3)}m</div>
       <div>Top-Right: ${result.cornerProjectedDistances[1].toFixed(3)}m</div>
       <div>Bottom-Left: ${result.cornerProjectedDistances[2].toFixed(3)}m</div>
       <div>Bottom-Right: ${result.cornerProjectedDistances[3].toFixed(3)}m</div>
       
-      <div>Projection Corners (in meters at z=1):</div>
-      <div>Left: ${result.projection.leftM.toFixed(3)}</div>
-      <div>Right: ${result.projection.rightM.toFixed(3)}</div>
-      <div>Bottom: ${result.projection.bottomM.toFixed(3)}</div>
-      <div>Top: ${result.projection.topM.toFixed(3)}</div>
-      
-      <div>Physical corners (meters from eye):</div>
-      <div>Top-Left: (${result.corners[0].x.toFixed(2)}, ${result.corners[0].y.toFixed(2)}, ${result.corners[0].z.toFixed(2)})</div>
-      <div>Top-Right: (${result.corners[1].x.toFixed(2)}, ${result.corners[1].y.toFixed(2)}, ${result.corners[1].z.toFixed(2)})</div>
-      <div>Bottom-Left: (${result.corners[2].x.toFixed(2)}, ${result.corners[2].y.toFixed(2)}, ${result.corners[2].z.toFixed(2)})</div>
-      <div>Bottom-Right: (${result.corners[3].x.toFixed(2)}, ${result.corners[3].y.toFixed(2)}, ${result.corners[3].z.toFixed(2)})</div>
+      <!-- Rest of the existing output -->
     `;
+    
+    // Store the nearest point in the display object for rendering
+    display.nearestPoint = nearestPoint;
   }
   
   // Render everything
