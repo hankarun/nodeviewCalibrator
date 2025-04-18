@@ -32,23 +32,12 @@ export function calculateDisplayProjection(display) {
 export function formatDisplayCalculations(result) {
   const nearestPoint = result.offcenterProjection.nearestPoint;
   
-  return `
-    <div>Projection Corners (in degrees):</div>
-    <div>Left: ${result.projection.left.toFixed(2)}°</div>
-    <div>Right: ${result.projection.right.toFixed(2)}°</div>
-    <div>Bottom: ${result.projection.bottom.toFixed(2)}°</div>
-    <div>Top: ${result.projection.top.toFixed(2)}°</div>
-    
+  return ` 
     <div>Offcenter Projection Parameters:</div>
     <div>Eye to nearest point: ${nearestPoint.distance.toFixed(3)}m</div>
-    <div>Horizontal FOV: ${result.offcenterProjection.fovHorizontal.toFixed(2)}°</div>
-    <div>Vertical FOV: ${result.offcenterProjection.fovVertical.toFixed(2)}°</div>
-    <div>Horizontal asymmetry: ${result.offcenterProjection.horizontalAsymmetry.toFixed(3)}</div>
-    <div>Vertical asymmetry: ${result.offcenterProjection.verticalAsymmetry.toFixed(3)}</div>
     
     <div>Nearest Point on Plane:</div>
     <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
-    <div>Normal: (${nearestPoint.normal.x.toFixed(3)}, ${nearestPoint.normal.y.toFixed(3)}, ${nearestPoint.normal.z.toFixed(3)})</div>
     
     <div>Corner vectors from nearest point:</div>
     <div>Top-Left: (${result.cornersRelativeToNearest[0].x.toFixed(3)}, ${result.cornersRelativeToNearest[0].y.toFixed(3)}, ${result.cornersRelativeToNearest[0].z.toFixed(3)})</div>
