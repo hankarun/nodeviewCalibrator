@@ -73,8 +73,7 @@ function calculateProjectionCorners(display) {
     { x: -halfWidth, y: -halfHeight, z: 0 },
     { x: halfWidth, y: -halfHeight, z: 0 }
   ];
-  
-  // Apply rotations (roll, pitch, yaw in that order)
+    // Apply rotations (roll, pitch, yaw in that order)
   const rotatedCorners = corners.map(corner => {
     // Apply roll (around Z)
     let x1 = corner.x * Math.cos(rollRad) - corner.y * Math.sin(rollRad);

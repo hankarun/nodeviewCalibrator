@@ -7,6 +7,8 @@ import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalcu
 import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions } from './canvasRenderer.js';
 // Import file operations
 import { openConfigFile, saveConfig, saveConfigAs } from './fileOperations.js';
+// Import projection tests
+import { runProjectionTests } from './projectionTest.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Electron application loaded successfully!');
@@ -417,4 +419,49 @@ document.addEventListener('DOMContentLoaded', () => {
   openConfigBtn.addEventListener('click', handleOpenConfigFile);
   saveConfigBtn.addEventListener('click', handleSaveConfig);
   saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
+  
+  // Test button event listener
+  const runTestBtn = document.getElementById('runTestBtn');
+  runTestBtn.addEventListener('click', runTestCase);
+  
+  // Function to run the projection test case
+  function runTestCase() {
+    // Clear existing displays
+    if (displays.length > 0) {
+      const continueTest = confirm('Running the test will clear all current displays. Continue?');
+      if (!continueTest) {
+        return;
+      }
+      displays.length = 0;
+      selectedDisplayIndex = -1;
+    }
+    
+    // Run the test
+    const testResults = runProjectionTests();
+    
+    // Add the test displays to the displays array
+    displays.push(testResults.centerDisplay);
+    displays.push(testResults.rightDisplay);
+    
+    // Update the UI
+    updateDisplayList();
+    selectDisplay(0); // Select the center display
+    
+    // Display test results
+    projectionResults.innerHTML += `
+      <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd;">
+        <strong>Test Results:</strong>
+        <div style="font-family: monospace; font-size: 0.9em; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">
+          Center display at (${testResults.centerDisplay.x}, ${testResults.centerDisplay.y}, ${testResults.centerDisplay.z})
+          Right display at (${testResults.rightDisplay.x.toFixed(3)}, ${testResults.rightDisplay.y.toFixed(3)}, ${testResults.rightDisplay.z.toFixed(3)})
+          with yaw: ${testResults.rightDisplay.yaw}°
+          
+          Check the console for detailed test results.
+        </div>
+      </div>
+    `;
+    
+    // Re-render the view
+    render();
+  }
 });
