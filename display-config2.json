@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2025-05-21T06:29:31.083Z",
+  "timestamp": "2025-05-21T14:11:14.453Z",
   "displays": [
     {
       "width": 0.952,
@@ -10,7 +10,7 @@
       "pitch": 0,
       "roll": 0,
       "x": 0,
-      "y": 0.1,
+      "y": -0.1,
       "z": 0.7,
       "showBorders": true,
       "borderWidthCm": 2,
@@ -35,7 +35,7 @@
       "pitch": 0,
       "roll": 0,
       "x": 0.82,
-      "y": 0.1,
+      "y": -0.1,
       "z": 0.35,
       "showBorders": true,
       "borderWidthCm": 2,
@@ -60,7 +60,7 @@
       "pitch": 0,
       "roll": 0,
       "x": -0.82,
-      "y": 0.1,
+      "y": -0.1,
       "z": 0.35,
       "showBorders": true,
       "borderWidthCm": 2,
