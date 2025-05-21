@@ -13,7 +13,10 @@ export function createDisplayFromInputs(inputs) {
     roll: parseFloat(inputs.roll),
     x: parseFloat(inputs.x),
     y: parseFloat(inputs.y),
-    z: parseFloat(inputs.z)
+    z: parseFloat(inputs.z),
+    showBorders: inputs.showBorders === undefined ? true : inputs.showBorders, // Default to true for visibility
+    borderWidthCm: inputs.borderWidthCm === undefined ? 2 : parseFloat(inputs.borderWidthCm), // Border width in cm
+    borderColor: inputs.borderColor || 'black' // Border color
   };
 }
 

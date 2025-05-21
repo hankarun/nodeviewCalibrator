@@ -127,6 +127,13 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
   const canvas = ctx.canvas;
   const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
   
+  // Check if showBorders is defined, default to true if not
+  const showBorders = display.showBorders !== undefined ? display.showBorders : true;
+  // Get border width in centimeters, default to 2cm if not specified
+  const borderWidthCm = display.borderWidthCm !== undefined ? display.borderWidthCm : 1.4;
+  // Get border color, default to black if not specified
+  const borderColor = display.borderColor || 'black';
+  
   // Convert angles to radians
   const yawRad = yaw * Math.PI / 180;
   const pitchRad = pitch * Math.PI / 180;
@@ -193,8 +200,7 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
         return {
           x: originX + corner.x * scale,
           y: originY - corner.z * scale // Z axis is inverted in canvas
-        };
-      });
+        };      });
       
       // Draw rectangle
       ctx.beginPath();
@@ -203,7 +209,14 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
         ctx.lineTo(topViewCorners[i].x, topViewCorners[i].y);
       }
       ctx.closePath();
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        // Convert cm to pixels based on current scale (scale is in meters)
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      }
       
       // Fill with semi-transparent color
       ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.2)' : 'rgba(0, 0, 255, 0.1)';
@@ -228,12 +241,20 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
       
       const x2 = displayCenterX + halfWidth * Math.cos(yawRad);
       const z2 = displayCenterZ + halfWidth * Math.sin(yawRad);
-      
-      // Draw display as a line
+        // Draw display as a line
       ctx.beginPath();
       ctx.moveTo(originX + x1, originY + z1);
       ctx.lineTo(originX + x2, originY + z2);
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      } else if (isSelected) {
+        // If selected, still show the line
+        ctx.stroke();
+      }
       
       // Draw sight lines from eye to display corners
       ctx.lineWidth = 0.5;
@@ -318,15 +339,26 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
           y: originY - corner.y * scale // Y axis is inverted in canvas
         };
       });
-      
-      // Draw rectangle
+        // Draw rectangle
       ctx.beginPath();
       ctx.moveTo(leftViewCorners[0].x, leftViewCorners[0].y);
       for (let i = 1; i < leftViewCorners.length; i++) {
         ctx.lineTo(leftViewCorners[i].x, leftViewCorners[i].y);
       }
       ctx.closePath();
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        // Convert cm to pixels based on current scale (scale is in meters)
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      } else {
+        // If no borders but selected, still show outline
+        if (isSelected) {
+          ctx.stroke();
+        }
+      }
       
       // Fill with semi-transparent color - increase opacity for better visibility
       ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.3)' : 'rgba(0, 128, 0, 0.2)';
@@ -361,12 +393,20 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
       
       const y2 = displayCenterY + halfHeight * Math.cos(pitchRad);
       const z2 = displayCenterZ + halfHeight * Math.sin(pitchRad);
-      
-      // Draw display as a line
+        // Draw display as a line
       ctx.beginPath();
       ctx.moveTo(originX + z1, originY + y1);
       ctx.lineTo(originX + z2, originY + y2);
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      } else if (isSelected) {
+        // If selected, still show the line
+        ctx.stroke();
+      }
       
       // Draw sight lines from eye to display corners
       ctx.lineWidth = 0.5;
@@ -451,15 +491,26 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
           y: originY - corner.y * scale // Y axis is inverted in canvas
         };
       });
-      
-      // Draw rectangle
+        // Draw rectangle
       ctx.beginPath();
       ctx.moveTo(frontViewCorners[0].x, frontViewCorners[0].y);
       for (let i = 1; i < frontViewCorners.length; i++) {
         ctx.lineTo(frontViewCorners[i].x, frontViewCorners[i].y);
       }
       ctx.closePath();
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        // Convert cm to pixels based on current scale (scale is in meters)
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      } else {
+        // If no borders but selected, still show outline
+        if (isSelected) {
+          ctx.stroke();
+        }
+      }
       
       // Fill with semi-transparent color
       ctx.fillStyle = isSelected ? 'rgba(255, 165, 0, 0.2)' : 'rgba(128, 0, 128, 0.1)';
@@ -488,12 +539,20 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
       // Line-based drawing for front view
       const halfWidth = width * scale / 2;
       const halfHeight = height * scale / 2;
-      
-      // Draw display as a line rectangle
+        // Draw display as a line rectangle
       ctx.beginPath();
       ctx.rect(originX + displayCenterX - halfWidth, originY + displayCenterY - halfHeight, 
                halfWidth * 2, halfHeight * 2);
-      ctx.stroke();
+      
+      if (showBorders) {
+        // Draw borders with the specified style and width in cm
+        ctx.lineWidth = (borderWidthCm / 100) * scale;
+        ctx.strokeStyle = borderColor;
+        ctx.stroke();
+      } else if (isSelected) {
+        // If selected, still show the rectangle
+        ctx.stroke();
+      }
       
       // Draw sight lines from eye to display corners
       ctx.lineWidth = 0.5;
