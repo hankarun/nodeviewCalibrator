@@ -4,7 +4,7 @@
 // Import display-related functions
 import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from './display.js';
 // Import canvas drawing functions
-import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions } from './canvasRenderer.js';
+import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions, initCanvasDrag } from './canvasRenderer.js';
 // Import file operations
 import { openConfigFile, saveConfig, saveConfigAs } from './fileOperations.js';
 // Import projection tests
@@ -97,6 +97,168 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => {
     resizeCanvases();
   });
+  // Initialize drag functionality for each canvas view
+  function initDragForAllCanvases() {
+    // Define canvas view offsets for panning (used with left click drag)
+    let topViewOffsetX = 0;
+    let topViewOffsetY = 0;
+    let leftViewOffsetX = 0;
+    let leftViewOffsetY = 0;
+    let frontViewOffsetX = 0;
+    let frontViewOffsetY = 0;
+    
+    // Handler for display movement via right-click drag
+    const handleDisplayDrag = (dx, dy, viewType) => {
+      // Only proceed if a display is selected
+      if (selectedDisplayIndex < 0) return;
+      
+      // Get the currently selected display
+      const display = displays[selectedDisplayIndex];
+      
+      // Convert pixel movement to world coordinates based on current view scale
+      // The scale factor converts meters to pixels, so we divide by it to convert back
+      let moveX = 0, moveY = 0, moveZ = 0;
+      
+      if (viewType === 'top') {
+        // In top view, X is horizontal and Z is vertical (inverted)
+        moveX = dx / topViewScale;
+        moveZ = dy / topViewScale; // dy is already inverted in the event handler
+        
+        // Update the display's position
+        display.x += moveX;
+        display.z += moveZ;
+      } 
+      else if (viewType === 'left') {
+        // In left view, Z is horizontal and Y is vertical (inverted)
+        moveZ = dx / leftViewScale;
+        moveY = dy / leftViewScale; // dy is already inverted
+        
+        // Update the display's position
+        display.z += moveZ;
+        display.y += moveY;
+      }
+      else if (viewType === 'front') {
+        // In front view, X is horizontal and Y is vertical (inverted)
+        moveX = dx / frontViewScale;
+        moveY = dy / frontViewScale; // dy is already inverted
+        
+        // Update the display's position
+        display.x += moveX;
+        display.y += moveY;
+      }
+      
+      // Update the display inputs in the UI
+      if (selectedDisplayIndex >= 0) {
+        displayOffsetXInput.value = display.x;
+        displayOffsetYInput.value = display.y;
+        displayOffsetZInput.value = display.z;
+      }
+      
+      // Recalculate display properties
+      if (selectedDisplayIndex >= 0) {
+        showDisplayCalculations(display);
+      }
+      
+      // Update display list to show new positions
+      updateDisplayList();
+      
+      // Re-render the views with updated positions
+      render();
+    };
+    
+    // Handler for canvas/view movement via left-click drag
+    const handleCanvasDrag = (dx, dy, viewType) => {
+      // Update the view offset based on the view type
+      if (viewType === 'top') {
+        topViewOffsetX += dx;
+        topViewOffsetY += dy;
+      } 
+      else if (viewType === 'left') {
+        leftViewOffsetX += dx;
+        leftViewOffsetY += dy;
+      }
+      else if (viewType === 'front') {
+        frontViewOffsetX += dx;
+        frontViewOffsetY += dy;
+      }
+      
+      // Re-render the view with the updated offset
+      render();
+    };
+    
+    // Store the original render function
+    const originalRender = render;
+    
+    // Override the render function to apply view offsets
+    render = function() {
+      // Clear canvases
+      topCtx.clearRect(0, 0, topViewCanvas.width, topViewCanvas.height);
+      leftCtx.clearRect(0, 0, leftViewCanvas.width, leftViewCanvas.height);
+      frontCtx.clearRect(0, 0, frontViewCanvas.width, frontViewCanvas.height);
+      
+      // Apply view translations
+      // Top view
+      topCtx.save();
+      topCtx.translate(topViewOffsetX, topViewOffsetY);
+      
+      // Left view
+      leftCtx.save();
+      leftCtx.translate(leftViewOffsetX, leftViewOffsetY);
+      
+      // Front view
+      frontCtx.save();
+      frontCtx.translate(frontViewOffsetX, frontViewOffsetY);
+      
+      // Draw coordinate systems
+      drawCoordinateSystem(topCtx, 'top', topViewScale, DEFAULT_SCALE_FACTOR);
+      drawCoordinateSystem(leftCtx, 'left', leftViewScale, DEFAULT_SCALE_FACTOR);
+      drawCoordinateSystem(frontCtx, 'front', frontViewScale, DEFAULT_SCALE_FACTOR);
+      
+      // Draw eye
+      drawEye(topCtx, 'top');
+      drawEye(leftCtx, 'left');
+      drawEye(frontCtx, 'front');
+      
+      // Draw all displays
+      displays.forEach((display, index) => {
+        const isSelected = index === selectedDisplayIndex;
+        const showAsRectangle = showAsRectanglesInput.checked;
+        
+        drawDisplay(topCtx, display, 'top', isSelected, selectedDisplayIndex, showAsRectangle, topViewScale);
+        drawDisplay(leftCtx, display, 'left', isSelected, selectedDisplayIndex, showAsRectangle, leftViewScale);
+        drawDisplay(frontCtx, display, 'front', isSelected, selectedDisplayIndex, showAsRectangle, frontViewScale);
+      });
+      
+      // Restore context
+      topCtx.restore();
+      leftCtx.restore();
+      frontCtx.restore();
+    };
+    
+    // Function to reset view offsets
+    function resetViewOffsets() {
+      topViewOffsetX = 0;
+      topViewOffsetY = 0;
+      leftViewOffsetX = 0;
+      leftViewOffsetY = 0;
+      frontViewOffsetX = 0;
+      frontViewOffsetY = 0;
+      render();
+    }
+    
+    // Add double-click event to reset view offsets
+    topViewCanvas.addEventListener('dblclick', resetViewOffsets);
+    leftViewCanvas.addEventListener('dblclick', resetViewOffsets);
+    frontViewCanvas.addEventListener('dblclick', resetViewOffsets);
+    
+    // Initialize drag for each canvas view with both callbacks
+    initCanvasDrag(topViewCanvas, 'top', handleDisplayDrag, handleCanvasDrag);
+    initCanvasDrag(leftViewCanvas, 'left', handleDisplayDrag, handleCanvasDrag);
+    initCanvasDrag(frontViewCanvas, 'front', handleDisplayDrag, handleCanvasDrag);
+  }
+  
+  // Call the initialization function
+  initDragForAllCanvases();
 
   // Update display list in the UI
   function updateDisplayList() {
@@ -160,14 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-render
     render();
   }
-  
-  // Show calculations for the display
+    // Show calculations for the display
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
     projectionResults.innerHTML = formatDisplayCalculations(result);
   }
   
-  // Render everything
+  // Base render function - this gets overridden in initDragForAllCanvases
   function render() {
     // Clear canvases
     topCtx.clearRect(0, 0, topViewCanvas.width, topViewCanvas.height);
@@ -355,7 +516,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedDisplayIndex = displays.length - 1;
       }
       // Otherwise keep the same index which now points to the next display
-      
       // Update UI
       updateDisplayList();
       
@@ -410,6 +570,11 @@ document.addEventListener('DOMContentLoaded', () => {
   frontViewZoomIn.addEventListener('click', () => changeFrontViewScale(1.25));
   frontViewZoomOut.addEventListener('click', () => changeFrontViewScale(0.8));
   frontViewReset.addEventListener('click', resetFrontViewScale);
+  
+  // Add wheel zoom event listeners
+  window.addEventListener('topViewScale', (event) => changeTopViewScale(event.detail.factor));
+  window.addEventListener('leftViewScale', (event) => changeLeftViewScale(event.detail.factor));
+  window.addEventListener('frontViewScale', (event) => changeFrontViewScale(event.detail.factor));
 
   // Add event listener for the new checkbox
   showAsRectanglesInput.addEventListener('change', render);

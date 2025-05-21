@@ -1,4 +1,4 @@
-// This file contains all canvas drawing functions for the application
+// This file contains all canvas drawing functions and interactions for the application
 
 /**
  * Draw eye position on the given canvas
@@ -679,4 +679,109 @@ export function setCanvasDimensions(canvas) {
   // Set CSS dimensions to match the canvas dimensions
   canvas.style.width = canvas.width + 'px';
   canvas.style.height = canvas.height + 'px';
+}
+
+/**
+ * Initialize mouse drag functionality for a canvas
+ * @param {HTMLCanvasElement} canvas - Canvas element to add drag functionality to
+ * @param {string} viewType - View type ('top', 'left', or 'front')
+ * @param {Function} onDisplayDrag - Callback for dragging display (right-click) - receives dx, dy, viewType
+ * @param {Function} onCanvasDrag - Callback for dragging canvas view (left-click) - receives dx, dy, viewType
+ */
+export function initCanvasDrag(canvas, viewType, onDisplayDrag, onCanvasDrag) {
+  let isDragging = false;
+  let isDisplayDrag = false; // Flag to determine if we're dragging a display (right click) or the view (left click)
+  let lastX, lastY;
+  
+  // Prevent context menu on right-click to allow right-click dragging
+  canvas.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    return false;
+  });
+  
+  // Mouse down event - start dragging
+  canvas.addEventListener('mousedown', (event) => {
+    isDragging = true;
+    // Right mouse button (button === 2) drags display
+    isDisplayDrag = event.button === 2;
+    lastX = event.offsetX;
+    lastY = event.offsetY;
+    
+    // Change cursor based on drag type
+    if (isDisplayDrag) {
+      canvas.style.cursor = 'move'; // Indicate display movement
+    } else {
+      canvas.style.cursor = 'grabbing'; // Indicate canvas/view movement
+    }
+  });
+  
+  // Mouse move event - calculate drag distance and invoke appropriate callback
+  canvas.addEventListener('mousemove', (event) => {
+    if (!isDragging) return;
+    
+    const dx = event.offsetX - lastX;
+    const dy = event.offsetY - lastY;
+    lastX = event.offsetX;
+    lastY = event.offsetY;
+    
+    // Note: we reverse dy since canvas y-axis is inverted compared to our coordinate system
+    if (isDisplayDrag) {
+      // Right-click drag affects only the selected display
+      onDisplayDrag(dx, -dy, viewType);
+    } else {
+      // Left-click drag affects the canvas view
+      onCanvasDrag(dx, dy, viewType);
+    }
+  });
+  
+  // Mouse up event - stop dragging
+  canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+    if (isDisplayDrag) {
+      canvas.style.cursor = 'default';
+    } else {
+      canvas.style.cursor = 'grab';
+    }
+    isDisplayDrag = false;
+  });
+  
+  // Mouse leave event - stop dragging if mouse leaves canvas
+  canvas.addEventListener('mouseleave', () => {
+    if (isDragging) {
+      isDragging = false;
+      canvas.style.cursor = isDisplayDrag ? 'default' : 'grab';
+      isDisplayDrag = false;
+    }
+  });
+  
+  // Mouse enter event - show appropriate cursor
+  canvas.addEventListener('mouseenter', (event) => {
+    if (event.buttons === 1) { // Left mouse button still down
+      canvas.style.cursor = 'grabbing';
+    } else if (event.buttons === 2) { // Right mouse button still down
+      canvas.style.cursor = 'move';
+    } else {
+      canvas.style.cursor = 'grab';
+    }
+  });
+  
+  // Wheel event for zooming
+  canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    
+    // Determine scale factor based on wheel direction
+    const scaleFactor = event.deltaY < 0 ? 1.1 : 0.9;
+    
+    // Call the appropriate scale function based on view type
+    if (viewType === 'top') {
+      window.dispatchEvent(new CustomEvent('topViewScale', { detail: { factor: scaleFactor } }));
+    } else if (viewType === 'left') {
+      window.dispatchEvent(new CustomEvent('leftViewScale', { detail: { factor: scaleFactor } }));
+    } else if (viewType === 'front') {
+      window.dispatchEvent(new CustomEvent('frontViewScale', { detail: { factor: scaleFactor } }));
+    }
+  });
+  
+  // Set initial cursor to indicate draggable area
+  canvas.style.cursor = 'grab';
 }

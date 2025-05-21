@@ -143,6 +143,11 @@ canvas {
   width: 100%;
   max-width: 400px;
   height: auto;
+  cursor: grab; /* Indicate the canvas is draggable */
+}
+
+canvas:active {
+  cursor: grabbing; /* Change cursor when actively dragging */
 }
 
 #projectionResults {
@@ -237,4 +242,22 @@ canvas {
 .file-operations button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+/* Drag instructions */
+.drag-instructions {
+  background-color: #f8f8f8;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.9em;
+  color: #333;
+  width: 100%;
+}
+
+.drag-instructions p {
+  margin: 0;
+  text-align: center;
 }
