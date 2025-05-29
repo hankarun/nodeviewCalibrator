@@ -63,7 +63,13 @@ export function formatDisplayCalculations(result) {
   
   return ` 
     <div>Offcenter Projection Parameters:</div>
-    <div>Eye to nearest point: ${nearestPoint.distance.toFixed(3)}m</div>
+    <div>Near Plane: ${nearestPoint.distance.toFixed(3)}m</div>
+
+    <div>Projection Corners:</div>
+    <div>Left: ${edgeDistances.left.toFixed(3)}m</div>
+    <div>Top: ${edgeDistances.top.toFixed(3)}m</div>
+    <div>Right: ${edgeDistances.right.toFixed(3)}m</div>
+    <div>Bottom: ${edgeDistances.bottom.toFixed(3)}m</div>    
     
     <div>Nearest Point on Plane:</div>
     <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
@@ -73,12 +79,6 @@ export function formatDisplayCalculations(result) {
     <div>Top-Right: (${result.cornersRelativeToNearest[1].x.toFixed(3)}, ${result.cornersRelativeToNearest[1].y.toFixed(3)}, ${result.cornersRelativeToNearest[1].z.toFixed(3)})</div>
     <div>Bottom-Left: (${result.cornersRelativeToNearest[2].x.toFixed(3)}, ${result.cornersRelativeToNearest[2].y.toFixed(3)}, ${result.cornersRelativeToNearest[2].z.toFixed(3)})</div>
     <div>Bottom-Right: (${result.cornersRelativeToNearest[3].x.toFixed(3)}, ${result.cornersRelativeToNearest[3].y.toFixed(3)}, ${result.cornersRelativeToNearest[3].z.toFixed(3)})</div>
-    
-    <div>Distances from nearest point to edges:</div>
-    <div>Left: ${edgeDistances.left.toFixed(3)}m</div>
-    <div>Top: ${edgeDistances.top.toFixed(3)}m</div>
-    <div>Right: ${edgeDistances.right.toFixed(3)}m</div>
-    <div>Bottom: ${edgeDistances.bottom.toFixed(3)}m</div>
   `;
 }
 
