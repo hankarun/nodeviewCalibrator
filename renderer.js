@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const projectionResults = document.getElementById('projectionResults');
   const presetSizeSelect = document.getElementById('presetSize');
   const showAsRectanglesInput = document.getElementById('showAsRectangles');
+  const stableEdgeCalculationInput = document.getElementById('stableEdgeCalculation');
   
   // File operation buttons
   const newConfigBtn = document.getElementById('newConfigBtn');
@@ -326,7 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show calculations for the display
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
-    projectionResults.innerHTML = formatDisplayCalculations(result);
+    const useStableCalculation = stableEdgeCalculationInput.checked;
+    projectionResults.innerHTML = formatDisplayCalculations(result, display, useStableCalculation);
   }
   
   // Base render function - this gets overridden in initDragForAllCanvases
@@ -579,6 +581,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add event listener for the new checkbox
   showAsRectanglesInput.addEventListener('change', render);
+
+  // Add event listener for the stable edge calculation checkbox
+  stableEdgeCalculationInput.addEventListener('change', () => {
+    // Recalculate and update display if one is selected
+    if (selectedDisplayIndex >= 0) {
+      showDisplayCalculations(displays[selectedDisplayIndex]);
+    }
+  });
 
   // File operation button event listeners
   newConfigBtn.addEventListener('click', handleNewConfig);
