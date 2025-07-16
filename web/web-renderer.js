@@ -1,24 +1,22 @@
-// This file handles all the client-side JavaScript logic
-// You can interact with the DOM and implement UI logic here
+// Web renderer for Node View Calibrator
+// This file adapts the Electron renderer to work in a web browser
 
 // Import display-related functions
-import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from './display.js';
+import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from '../display.js';
 // Import canvas drawing functions
-import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions, initCanvasDrag } from './canvasRenderer.js';
+import { drawEye, drawCoordinateSystem, drawDisplay, setCanvasDimensions, initCanvasDrag } from '../canvasRenderer.js';
 // Import unified file operations interface
-import { getFileInterface, openConfigFile, saveConfig, saveConfigAs } from './fileInterface.js';
+import { getFileInterface, openConfigFile, saveConfig, saveConfigAs } from '../fileInterface.js';
 // Import projection tests
-import { runProjectionTests } from './projectionTest.js';
+import { runProjectionTests } from '../projectionTest.js';
 // Import status bar
-import { StatusBar } from './statusBar.js';
+import { StatusBar } from '../statusBar.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('Electron application loaded successfully!');
-  
   // Initialize the unified file interface
   const fileInterface = await getFileInterface();
   const envInfo = fileInterface.getEnvironmentInfo();
-  console.log(`File interface initialized for ${envInfo.platform} environment`);
+  console.log(`Node View Calibrator loaded in ${envInfo.platform} environment`);
   
   // Initialize status bar
   const statusBar = new StatusBar(fileInterface);
@@ -105,6 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('resize', () => {
     resizeCanvases();
   });
+  
   // Initialize drag functionality for each canvas view
   function initDragForAllCanvases() {
     // Define canvas view offsets for panning (used with left click drag)
@@ -335,7 +334,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Re-render
     render();
   }
-    // Show calculations for the display
+  
+  // Show calculations for the display
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
     const useStableCalculation = stableEdgeCalculationInput.checked;
@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
   }
   
-  // Create a new display from input values (renamed to avoid conflict with imported function)
+  // Create a new display from input values
   function getDisplayFromInputs() {
     return createDisplayFromInputs({
       width: displayWidthInput.value,
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   
-  // File Operation Functions
+  // File Operation Functions (using unified interface)
   
   // Create new configuration
   function handleNewConfig() {
@@ -454,59 +454,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // Open configuration from file
-  function handleOpenConfigFile() {
-    if (displays.length > 0 && !fileInterface.confirmUnsavedChanges('open a new configuration')) {
-      return;
+  async function handleOpenConfigFile() {
+    try {
+      if (displays.length > 0 && !fileInterface.confirmUnsavedChanges('open a new configuration')) {
+        return;
+      }
+      
+      const result = await fileInterface.openFile();
+      
+      if (result.canceled) return;
+      
+      // Load the configuration
+      displays.length = 0;
+      displays.push(...result.config.displays);
+      
+      // Update UI
+      updateDisplayList();
+      
+      // Select first display if available
+      if (displays.length > 0) {
+        selectDisplay(0);
+      } else {
+        selectedDisplayIndex = -1;
+        updateDisplayBtn.disabled = true;
+        projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
+      }
+      
+      // Re-render
+      render();
+    } catch (error) {
+      console.error('Error opening file:', error);
     }
-    
-    openConfigFile()
-      .then(result => {
-        if (result.canceled) return;
-        
-        // Load the configuration
-        displays.length = 0;
-        displays.push(...result.config.displays);
-        
-        // Update UI
-        updateDisplayList();
-        
-        // Select first display if available
-        if (displays.length > 0) {
-          selectDisplay(0);
-        } else {
-          selectedDisplayIndex = -1;
-          updateDisplayBtn.disabled = true;
-          projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
-        }
-        
-        // Re-render
-        render();
-      })
-      .catch(error => {
-        console.error('Error opening file:', error);
-      });
   }
   
   // Save configuration to current file
-  function handleSaveConfig() {
-    saveConfig(displays)
-      .then(result => {
-        // Success notification is handled by the file interface
-      })
-      .catch(error => {
-        console.error('Error saving file:', error);
-      });
+  async function handleSaveConfig() {
+    try {
+      const result = await fileInterface.saveFile(displays, false);
+      // Success notification is handled by the file interface
+    } catch (error) {
+      console.error('Error saving file:', error);
+    }
   }
   
   // Save configuration with new filename
-  function handleSaveConfigAs() {
-    saveConfigAs(displays)
-      .then(result => {
-        // Success notification is handled by the file interface
-      })
-      .catch(error => {
-        console.error('Error saving file:', error);
-      });
+  async function handleSaveConfigAs() {
+    try {
+      const result = await fileInterface.saveFile(displays, true);
+      // Success notification is handled by the file interface
+    } catch (error) {
+      console.error('Error saving file:', error);
+    }
   }
   
   // Delete the currently selected display
@@ -527,6 +525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedDisplayIndex = displays.length - 1;
       }
       // Otherwise keep the same index which now points to the next display
+      
       // Update UI
       updateDisplayList();
       
@@ -549,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   render();
   updateDisplayList();
   
- 
+  // Event Listeners
   addDisplayBtn.addEventListener('click', () => {
     const display = getDisplayFromInputs();
     displays.push(display);
@@ -609,5 +608,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   newConfigBtn.addEventListener('click', handleNewConfig);
   openConfigBtn.addEventListener('click', handleOpenConfigFile);
   saveConfigBtn.addEventListener('click', handleSaveConfig);
-  saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);    
+  saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
 });

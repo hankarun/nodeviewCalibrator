@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node View Calibrator - Choose Version</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            color: white;
+            max-width: 800px;
+            padding: 40px;
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        .version-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        .version-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .version-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .version-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        .version-title {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .version-description {
+            margin-bottom: 20px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        .version-features {
+            text-align: left;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+        .version-features ul {
+            list-style: none;
+            padding: 0;
+        }
+        .version-features li {
+            margin: 8px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        .version-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .launch-button {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: bold;
+        }
+        .launch-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .desktop .launch-button {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+        }
+        .web .launch-button {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+        }
+        .note {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            .container {
+                padding: 20px;
+            }
+            .version-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Node View Calibrator</h1>
+        <p class="subtitle">Professional Display Configuration Tool</p>
+        
+        <div class="version-cards">
+            <div class="version-card desktop">
+                <div class="version-icon">🖥️</div>
+                <div class="version-title">Desktop Application</div>
+                <div class="version-description">
+                    Full-featured Electron app with native file system access and desktop integration.
+                </div>
+                <div class="version-features">
+                    <ul>
+                        <li>Native file dialogs</li>
+                        <li>Full filesystem access</li>
+                        <li>Desktop integration</li>
+                        <li>Offline operation</li>
+                        <li>System notifications</li>
+                    </ul>
+                </div>
+                <button class="launch-button" onclick="launchDesktop()">Launch Desktop App</button>
+            </div>
+            
+            <div class="version-card web">
+                <div class="version-icon">🌐</div>
+                <div class="version-title">Web Application</div>
+                <div class="version-description">
+                    Browser-based version that works on any device without installation.
+                </div>
+                <div class="version-features">
+                    <ul>
+                        <li>No installation required</li>
+                        <li>Cross-platform compatibility</li>
+                        <li>Mobile device support</li>
+                        <li>Automatic updates</li>
+                        <li>Easy sharing</li>
+                    </ul>
+                </div>
+                <a href="http://localhost:3000" class="launch-button" target="_blank">Launch Web App</a>
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>Note:</strong> Both versions offer the same core functionality for display calibration and configuration. 
+            Choose the desktop version for professional use with frequent file operations, or the web version for 
+            quick access and cross-platform compatibility.
+        </div>
+    </div>
+
+    <script>
+        function launchDesktop() {
+            alert('To launch the desktop application:\n\n1. Open a command prompt or PowerShell\n2. Navigate to the project folder\n3. Run: npm start\n\nOr double-click the "start-desktop.bat" file');
+        }
+        
+        // Check if web server is running
+        fetch('http://localhost:3000')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Server not running');
+                }
+            })
+            .catch(error => {
+                const webCard = document.querySelector('.web .launch-button');
+                webCard.innerHTML = 'Start Web Server First';
+                webCard.onclick = function() {
+                    alert('To start the web server:\n\n1. Open a command prompt or PowerShell\n2. Navigate to the project folder\n3. Run: npm run start-web\n\nOr double-click the "start-web.bat" file');
+                    return false;
+                };
+                webCard.removeAttribute('href');
+                webCard.style.background = 'linear-gradient(45deg, #FF9800, #F57C00)';
+            });
+    </script>
+</body>
+</html>

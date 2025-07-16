@@ -1,0 +1,131 @@
+/* Web-specific styles for Node View Calibrator */
+
+.web-badge {
+  font-size: 0.6em;
+  background: #007acc;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+  font-weight: normal;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1200px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  
+  .left-column,
+  .middle-column,
+  .right-column {
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  
+  .middle-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  
+  .canvas-container.right-canvas {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .middle-column {
+    grid-template-columns: 1fr;
+  }
+  
+  .canvas-container.right-canvas {
+    grid-column: span 1;
+  }
+  
+  .file-operations {
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  .file-operations button {
+    flex: 1;
+    min-width: 60px;
+  }
+}
+
+/* File operations styling */
+.file-operations {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Download link styling for saved files */
+.download-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #007acc;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.download-link:hover {
+  background: #005a9e;
+}
+
+/* Notification styling */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+  background: #4caf50;
+}
+
+.notification.error {
+  background: #f44336;
+}
+
+.notification.info {
+  background: #2196f3;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Loading indicator */
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #007acc;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

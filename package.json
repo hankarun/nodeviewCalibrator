@@ -4,6 +4,7 @@
   "description": "A blank Electron application",
   "main": "main.js",
   "scripts": {
+    "start-web": "node web/server.js",
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "electron-builder",
@@ -18,6 +19,9 @@
   "devDependencies": {
     "electron": "^35.1.4",
     "electron-builder": "^24.4.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
   },
   "build": {
     "appId": "com.yourcompany.nodeviewcalibrator",
@@ -61,5 +65,5 @@
       "shortcutName": "Node View Calibrator"
     },
     "forceCodeSigning": false
-    }
+  }
 }
