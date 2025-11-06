@@ -64,7 +64,7 @@ export function calculateDisplayProjection(display) {
 }
 
 // Format calculation results for display
-export function formatDisplayCalculations(result, display = null, useStableCalculation = true) {
+export function formatDisplayCalculations(result, display = null, useStableCalculation = true, nearPlane = null) {
   const nearestPoint = result.offcenterProjection.nearestPoint;
 
   let edgeDistances;
@@ -93,7 +93,22 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
   const modeLabel = useStableCalculation ? 'Stable' : 'Precise';
 
   const formatMeters = value => `${value.toFixed(3)}m`;
-  const nearPlaneMeters = formatMeters(Math.abs(nearestPoint.distance));
+  
+  // Use custom near plane if provided, otherwise use the nearest point distance
+  const effectiveNearPlane = nearPlane !== null ? nearPlane : Math.abs(nearestPoint.distance);
+  const nearPlaneMeters = formatMeters(effectiveNearPlane);
+  
+  // If a custom near plane is provided, scale the edge distances
+  let scaledEdgeDistances = edgeDistances;
+  if (nearPlane !== null && Math.abs(nearestPoint.distance) > 0.0001) {
+    const scaleFactor = nearPlane / Math.abs(nearestPoint.distance);
+    scaledEdgeDistances = {
+      left: edgeDistances.left * scaleFactor,
+      right: edgeDistances.right * scaleFactor,
+      top: edgeDistances.top * scaleFactor,
+      bottom: edgeDistances.bottom * scaleFactor
+    };
+  }
 
   return `
     <section class="projection-summary">
@@ -101,10 +116,10 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
       <table class="projection-table">
         <tbody>
           <tr><th scope="row">Near Plane</th><td>${nearPlaneMeters}</td></tr>
-          <tr><th scope="row">Left</th><td>${formatMeters(edgeDistances.left)}</td></tr>
-          <tr><th scope="row">Right</th><td>${formatMeters(edgeDistances.right)}</td></tr>
-          <tr><th scope="row">Top</th><td>${formatMeters(edgeDistances.top)}</td></tr>
-          <tr><th scope="row">Bottom</th><td>${formatMeters(edgeDistances.bottom)}</td></tr>
+          <tr><th scope="row">Left</th><td>${formatMeters(scaledEdgeDistances.left)}</td></tr>
+          <tr><th scope="row">Right</th><td>${formatMeters(scaledEdgeDistances.right)}</td></tr>
+          <tr><th scope="row">Top</th><td>${formatMeters(scaledEdgeDistances.top)}</td></tr>
+          <tr><th scope="row">Bottom</th><td>${formatMeters(scaledEdgeDistances.bottom)}</td></tr>
         </tbody>
       </table>
     </section>

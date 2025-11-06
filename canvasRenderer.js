@@ -122,8 +122,9 @@ export function drawCoordinateSystem(ctx, viewType, scale, defaultScale) {
  * @param {number} selectedDisplayIndex - Index of selected display
  * @param {boolean} showAsRectangle - Whether to show as rectangles
  * @param {number} scale - Current scale factor for this view
+ * @param {number} nearPlane - Near plane distance (null if not in lock mode)
  */
-export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayIndex, showAsRectangle, scale) {
+export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayIndex, showAsRectangle, scale, nearPlane = null) {
   const canvas = ctx.canvas;
   const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
   
@@ -659,6 +660,88 @@ export function drawDisplay(ctx, display, viewType, isSelected, selectedDisplayI
       ctx.lineTo(originX + nearestPoint.x * scale, originY - nearestPoint.y * scale);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+  }
+  
+  // Draw near plane visualization if nearPlane is provided and display is selected
+  if (isSelected && nearPlane !== null && display.nearestPoint) {
+    const nearestPoint = display.nearestPoint;
+    const nearestDistance = Math.abs(nearestPoint.distance);
+    
+    // Only draw if nearPlane is different from nearest point distance
+    if (Math.abs(nearPlane - nearestDistance) > 0.001) {
+      const canvas = ctx.canvas;
+      const originX = canvas.width / 2;
+      const originY = canvas.height / 2;
+      
+      // Calculate the scale factor between near plane and nearest point
+      const scaleFactor = nearPlane / nearestDistance;
+      
+      // Scale the nearest point to get the near plane point
+      const nearPlanePoint = {
+        x: nearestPoint.x * scaleFactor,
+        y: nearestPoint.y * scaleFactor,
+        z: nearestPoint.z * scaleFactor
+      };
+      
+      // Draw near plane point
+      ctx.fillStyle = 'rgba(0, 128, 255, 0.8)';  // Blue
+      
+      if (viewType === 'top') {
+        // Draw in top view (x-z plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearPlanePoint.x * scale, originY - nearPlanePoint.z * scale, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to near plane point
+        ctx.strokeStyle = 'rgba(0, 128, 255, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearPlanePoint.x * scale, originY - nearPlanePoint.z * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Add label
+        ctx.fillStyle = 'rgba(0, 128, 255, 0.9)';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(`Near plane (${nearPlane.toFixed(3)}m)`, 
+                     originX + nearPlanePoint.x * scale + 8, 
+                     originY - nearPlanePoint.z * scale + 12);
+      }
+      else if (viewType === 'left') {
+        // Draw in left view (z-y plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearPlanePoint.z * scale, originY - nearPlanePoint.y * scale, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to near plane point
+        ctx.strokeStyle = 'rgba(0, 128, 255, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearPlanePoint.z * scale, originY - nearPlanePoint.y * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      else if (viewType === 'front') {
+        // Draw in front view (x-y plane)
+        ctx.beginPath();
+        ctx.arc(originX + nearPlanePoint.x * scale, originY - nearPlanePoint.y * scale, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw line from eye to near plane point
+        ctx.strokeStyle = 'rgba(0, 128, 255, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + nearPlanePoint.x * scale, originY - nearPlanePoint.y * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
   }
 }

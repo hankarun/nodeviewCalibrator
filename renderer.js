@@ -61,6 +61,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const presetSizeSelect = document.getElementById('presetSize');
   const showAsRectanglesInput = document.getElementById('showAsRectangles');
   const stableEdgeCalculationInput = document.getElementById('stableEdgeCalculation');
+  const lockDisplayPositionInput = document.getElementById('lockDisplayPosition');
+  const nearPlaneInput = document.getElementById('nearPlane');
   
   // File operation buttons
   const newConfigBtn = document.getElementById('newConfigBtn');
@@ -228,14 +230,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       drawEye(leftCtx, 'left');
       drawEye(frontCtx, 'front');
       
+      // Get lock mode state and near plane value
+      const lockPosition = lockDisplayPositionInput.checked;
+      const nearPlane = lockPosition ? parseFloat(nearPlaneInput.value) : null;
+      
       // Draw all displays
       displays.forEach((display, index) => {
         const isSelected = index === selectedDisplayIndex;
         const showAsRectangle = showAsRectanglesInput.checked;
         
-        drawDisplay(topCtx, display, 'top', isSelected, selectedDisplayIndex, showAsRectangle, topViewScale);
-        drawDisplay(leftCtx, display, 'left', isSelected, selectedDisplayIndex, showAsRectangle, leftViewScale);
-        drawDisplay(frontCtx, display, 'front', isSelected, selectedDisplayIndex, showAsRectangle, frontViewScale);
+        drawDisplay(topCtx, display, 'top', isSelected, selectedDisplayIndex, showAsRectangle, topViewScale, nearPlane);
+        drawDisplay(leftCtx, display, 'left', isSelected, selectedDisplayIndex, showAsRectangle, leftViewScale, nearPlane);
+        drawDisplay(frontCtx, display, 'front', isSelected, selectedDisplayIndex, showAsRectangle, frontViewScale, nearPlane);
       });
       
       // Restore context
@@ -342,7 +348,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
     const useStableCalculation = stableEdgeCalculationInput.checked;
-    projectionResults.innerHTML = formatDisplayCalculations(result, display, useStableCalculation);
+    const lockPosition = lockDisplayPositionInput.checked;
+    const nearPlane = lockPosition ? parseFloat(nearPlaneInput.value) : null;
+    projectionResults.innerHTML = formatDisplayCalculations(result, display, useStableCalculation, nearPlane);
   }
   
   // Base render function - this gets overridden in initDragForAllCanvases
@@ -362,14 +370,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     drawEye(leftCtx, 'left');
     drawEye(frontCtx, 'front');
     
+    // Get lock mode state and near plane value
+    const lockPosition = lockDisplayPositionInput.checked;
+    const nearPlane = lockPosition ? parseFloat(nearPlaneInput.value) : null;
+    
     // Draw all displays
     displays.forEach((display, index) => {
       const isSelected = index === selectedDisplayIndex;
       const showAsRectangle = showAsRectanglesInput.checked;
       
-      drawDisplay(topCtx, display, 'top', isSelected, selectedDisplayIndex, showAsRectangle, topViewScale);
-      drawDisplay(leftCtx, display, 'left', isSelected, selectedDisplayIndex, showAsRectangle, leftViewScale);
-      drawDisplay(frontCtx, display, 'front', isSelected, selectedDisplayIndex, showAsRectangle, frontViewScale);
+      drawDisplay(topCtx, display, 'top', isSelected, selectedDisplayIndex, showAsRectangle, topViewScale, nearPlane);
+      drawDisplay(leftCtx, display, 'left', isSelected, selectedDisplayIndex, showAsRectangle, leftViewScale, nearPlane);
+      drawDisplay(frontCtx, display, 'front', isSelected, selectedDisplayIndex, showAsRectangle, frontViewScale, nearPlane);
     });
   }
   
@@ -611,6 +623,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       showDisplayCalculations(displays[selectedDisplayIndex]);
     }
   });
+
+  // Add event listener for lock display position checkbox
+  lockDisplayPositionInput.addEventListener('change', () => {
+    // Enable/disable near plane input based on lock state
+    nearPlaneInput.disabled = !lockDisplayPositionInput.checked;
+    // Recalculate and update display if one is selected
+    if (selectedDisplayIndex >= 0) {
+      showDisplayCalculations(displays[selectedDisplayIndex]);
+    }
+  });
+
+  // Add event listener for near plane input
+  nearPlaneInput.addEventListener('input', () => {
+    // Only update if lock position mode is active and a display is selected
+    if (lockDisplayPositionInput.checked && selectedDisplayIndex >= 0) {
+      showDisplayCalculations(displays[selectedDisplayIndex]);
+      render(); // Re-render to update near plane visualization
+    }
+  });
+
+  // Initialize near plane input state
+  nearPlaneInput.disabled = !lockDisplayPositionInput.checked;
 
   // File operation button event listeners
   newConfigBtn.addEventListener('click', handleNewConfig);
