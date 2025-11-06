@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const displayOffsetXInput = document.getElementById('displayOffsetX');
   const displayOffsetYInput = document.getElementById('displayOffsetY');
   const displayOffsetZInput = document.getElementById('displayOffsetZ');
+  const displayNameInput = document.getElementById('displayName');
   const addDisplayBtn = document.getElementById('addDisplayBtn');
   const updateDisplayBtn = document.getElementById('updateDisplayBtn');
   const deleteDisplayBtn = document.getElementById('deleteDisplayBtn');
@@ -286,7 +287,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         displayItem.classList.add('selected');
       }
       
-      displayItem.textContent = `Display ${index + 1}`;
+      const displayLabel = display.name ? `Display ${index + 1} (${display.name})` : `Display ${index + 1}`;
+      displayItem.textContent = displayLabel;
       displayItem.title = `${display.width}m × ${display.height}m at (${display.x.toFixed(2)}, ${display.y.toFixed(2)}, ${display.z.toFixed(2)})`;
       
       displayItem.addEventListener('click', () => {
@@ -318,6 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       displayOffsetXInput.value = display.x;
       displayOffsetYInput.value = display.y;
       displayOffsetZInput.value = display.z;
+      displayNameInput.value = display.name || '';
       
       // Enable update and delete buttons
       updateDisplayBtn.disabled = false;
@@ -415,7 +418,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Create a new display from input values
   function getDisplayFromInputs() {
-    return createDisplayFromInputs({
+    const inputs = {
+      name: displayNameInput.value,
       width: displayWidthInput.value,
       height: displayHeightInput.value,
       distance: displayDistanceInput.value,
@@ -425,7 +429,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       x: displayOffsetXInput.value,
       y: displayOffsetYInput.value,
       z: displayOffsetZInput.value
-    });
+    };
+    const result = createDisplayFromInputs(inputs);
+    return result;
   }
   
   // File Operation Functions (using unified interface)

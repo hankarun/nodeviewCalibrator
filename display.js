@@ -34,7 +34,8 @@ function calculateDisplayAxes(display) {
 
 // Create a new display from input values
 export function createDisplayFromInputs(inputs) {
-  return {
+  const result = {
+    name: inputs.name !== undefined ? inputs.name : '',
     width: parseFloat(inputs.width),
     height: parseFloat(inputs.height),
     distance: parseFloat(inputs.distance), // Keep for backwards compatibility
@@ -48,6 +49,7 @@ export function createDisplayFromInputs(inputs) {
     borderWidthCm: inputs.borderWidthCm === undefined ? 2 : parseFloat(inputs.borderWidthCm), // Border width in cm
     borderColor: inputs.borderColor || 'black' // Border color
   };
+  return result;
 }
 
 // Show calculations for the display
