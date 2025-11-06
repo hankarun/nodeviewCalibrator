@@ -64,53 +64,48 @@ export function calculateDisplayProjection(display) {
 // Format calculation results for display
 export function formatDisplayCalculations(result, display = null, useStableCalculation = true) {
   const nearestPoint = result.offcenterProjection.nearestPoint;
-  
+
   let edgeDistances;
-  
+
   if (display && (display.yaw !== 0 || display.pitch !== 0 || display.roll !== 0)) {
-    // If we have a rotated display, calculate edge distances using the actual display
     edgeDistances = calculateEdgeDistancesFromNearestPoint(display, useStableCalculation);
   } else {
-    // Calculate edge distances for non-rotated display
     const displayData = {
       width: result.corners[1].x - result.corners[0].x,
       height: result.corners[0].y - result.corners[2].y,
       x: (result.corners[0].x + result.corners[3].x) / 2,
       y: (result.corners[0].y + result.corners[3].y) / 2,
       z: (result.corners[0].z + result.corners[3].z) / 2,
-      yaw: 0, // These are already applied in the result
+      yaw: 0,
       pitch: 0,
       roll: 0
     };
-    
+
     edgeDistances = calculateEdgeDistancesFromNearestPoint({
       ...displayData,
-      // Include the corners from the result so we can reuse them directly
       corners: result.corners,
       cornersRelativeToNearest: result.cornersRelativeToNearest
     }, useStableCalculation);
   }
-  
-  const calculationMethod = useStableCalculation ? "(Stable)" : "(Precise)";
-  
-  return ` 
-    <div>Offcenter Projection Parameters:</div>
-    <div>Near Plane: ${-1 * nearestPoint.distance.toFixed(3)}m</div>
 
-    <div>Projection Corners ${calculationMethod}:</div>
-    <div>Left: ${edgeDistances.left.toFixed(3)}m</div>
-    <div>Right: ${edgeDistances.right.toFixed(3)}m</div>
-    <div>Top: ${edgeDistances.top.toFixed(3)}m</div>
-    <div>Bottom: ${edgeDistances.bottom.toFixed(3)}m</div>    
-    
-    <div>Nearest Point on Plane:</div>
-    <div>Position: (${nearestPoint.x.toFixed(3)}, ${nearestPoint.y.toFixed(3)}, ${nearestPoint.z.toFixed(3)})</div>
-    
-    <div>Corner vectors from nearest point:</div>
-    <div>Top-Left: (${result.cornersRelativeToNearest[0].x.toFixed(3)}, ${result.cornersRelativeToNearest[0].y.toFixed(3)}, ${result.cornersRelativeToNearest[0].z.toFixed(3)})</div>
-    <div>Top-Right: (${result.cornersRelativeToNearest[1].x.toFixed(3)}, ${result.cornersRelativeToNearest[1].y.toFixed(3)}, ${result.cornersRelativeToNearest[1].z.toFixed(3)})</div>
-    <div>Bottom-Left: (${result.cornersRelativeToNearest[2].x.toFixed(3)}, ${result.cornersRelativeToNearest[2].y.toFixed(3)}, ${result.cornersRelativeToNearest[2].z.toFixed(3)})</div>
-    <div>Bottom-Right: (${result.cornersRelativeToNearest[3].x.toFixed(3)}, ${result.cornersRelativeToNearest[3].y.toFixed(3)}, ${result.cornersRelativeToNearest[3].z.toFixed(3)})</div>
+  const modeLabel = useStableCalculation ? 'Stable' : 'Precise';
+
+  const formatMeters = value => `${value.toFixed(3)}m`;
+  const nearPlaneMeters = formatMeters(Math.abs(nearestPoint.distance));
+
+  return `
+    <section class="projection-summary">
+      <header class="projection-header">Offcenter Projection Parameters (${modeLabel})</header>
+      <table class="projection-table">
+        <tbody>
+          <tr><th scope="row">Near Plane</th><td>${nearPlaneMeters}</td></tr>
+          <tr><th scope="row">Left</th><td>${formatMeters(edgeDistances.left)}</td></tr>
+          <tr><th scope="row">Right</th><td>${formatMeters(edgeDistances.right)}</td></tr>
+          <tr><th scope="row">Top</th><td>${formatMeters(edgeDistances.top)}</td></tr>
+          <tr><th scope="row">Bottom</th><td>${formatMeters(edgeDistances.bottom)}</td></tr>
+        </tbody>
+      </table>
+    </section>
   `;
 }
 
