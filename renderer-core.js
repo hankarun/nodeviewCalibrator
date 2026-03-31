@@ -36,8 +36,7 @@ export async function initApp() {
   const presetSizeSelect = document.getElementById('presetSize');
   const stableEdgeCalculationInput = document.getElementById('stableEdgeCalculation');
 
-  // Desktop-only elements (may be null in web)
-  const lockDisplayPositionInput = document.getElementById('lockDisplayPosition');
+  // Per-display near plane input
   const nearPlaneInput = document.getElementById('nearPlane');
 
   // Viewport control buttons
@@ -145,6 +144,11 @@ export async function initApp() {
       displayOffsetZInput.value = display.z;
       displayNameInput.value = display.name || '';
 
+      // Populate per-display near plane input
+      if (nearPlaneInput) {
+        nearPlaneInput.value = display.nearPlane != null ? display.nearPlane : '';
+      }
+
       updateDisplayBtn.disabled = false;
       deleteDisplayBtn.disabled = false;
 
@@ -163,15 +167,14 @@ export async function initApp() {
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
     const useStableCalculation = stableEdgeCalculationInput.checked;
-    const lockPosition = lockDisplayPositionInput && lockDisplayPositionInput.checked;
-    const nearPlane = lockPosition ? parseFloat(nearPlaneInput.value) : null;
+    const nearPlane = display.nearPlane != null ? display.nearPlane : null;
     projectionResults.innerHTML = formatDisplayCalculations(result, display, useStableCalculation, nearPlane);
   }
 
   function updateNearPlaneVisualization() {
-    if (selectedDisplayIndex >= 0 && lockDisplayPositionInput && lockDisplayPositionInput.checked) {
+    if (selectedDisplayIndex >= 0 && selectedDisplayIndex < displays.length) {
       const display = displays[selectedDisplayIndex];
-      const nearPlane = parseFloat(nearPlaneInput.value);
+      const nearPlane = display.nearPlane != null ? display.nearPlane : null;
       scene.updateNearPlane(display, nearPlane);
     } else {
       scene.updateNearPlane(null, null);
@@ -191,7 +194,8 @@ export async function initApp() {
       roll: displayRollInput.value,
       x: displayOffsetXInput.value,
       y: displayOffsetYInput.value,
-      z: displayOffsetZInput.value
+      z: displayOffsetZInput.value,
+      nearPlane: nearPlaneInput && nearPlaneInput.value !== '' ? nearPlaneInput.value : null
     };
     return createDisplayFromInputs(inputs);
   }
@@ -314,24 +318,21 @@ export async function initApp() {
     }
   });
 
-  // Near-plane controls (desktop only)
-  if (lockDisplayPositionInput && nearPlaneInput) {
-    lockDisplayPositionInput.addEventListener('change', () => {
-      nearPlaneInput.disabled = !lockDisplayPositionInput.checked;
-      if (selectedDisplayIndex >= 0) {
-        showDisplayCalculations(displays[selectedDisplayIndex]);
-        updateNearPlaneVisualization();
-      }
-    });
-
+  // Per-display near plane input
+  if (nearPlaneInput) {
     nearPlaneInput.addEventListener('input', () => {
-      if (lockDisplayPositionInput.checked && selectedDisplayIndex >= 0) {
+      if (selectedDisplayIndex >= 0) {
+        const val = nearPlaneInput.value;
+        if (val === '' || val === null) {
+          delete displays[selectedDisplayIndex].nearPlane;
+        } else {
+          displays[selectedDisplayIndex].nearPlane = parseFloat(val);
+        }
         showDisplayCalculations(displays[selectedDisplayIndex]);
         updateNearPlaneVisualization();
+        fileInterface.markUnsaved();
       }
     });
-
-    nearPlaneInput.disabled = !lockDisplayPositionInput.checked;
   }
 
   // --- Camera & gizmo controls ---

@@ -30,6 +30,10 @@ export function createDisplayFromInputs(inputs) {
     borderWidthCm: inputs.borderWidthCm === undefined ? 2 : parseFloat(inputs.borderWidthCm), // Border width in cm
     borderColor: inputs.borderColor || 'black' // Border color
   };
+  // Optional per-display near plane override (null = use computed nearest point distance)
+  if (inputs.nearPlane !== undefined && inputs.nearPlane !== null && inputs.nearPlane !== '') {
+    result.nearPlane = parseFloat(inputs.nearPlane);
+  }
   return result;
 }
 
