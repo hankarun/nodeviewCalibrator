@@ -6,6 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="web-styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>  
   <div class="container">
@@ -86,10 +94,7 @@
             <label for="displayOffsetZ">Z position (m):</label>
             <input type="number" id="displayOffsetZ" value="0.7" step="0.01">
           </div>
-          <div class="input-row">
-            <label for="showAsRectangles">Show displays as rectangles:</label>
-            <input type="checkbox" id="showAsRectangles" checked>
-          </div>
+
           <div class="input-row">
             <label for="stableEdgeCalculation">Stable edge calculation:</label>
             <input type="checkbox" id="stableEdgeCalculation" checked title="Use stable edge distance calculation that minimizes changes when moving rotated displays">
@@ -102,36 +107,20 @@
         </div>
       </div>
       
-      <!-- Middle Column: Canvas Views -->
+      <!-- Middle Column: 3D Viewport -->
       <div class="middle-column">
-        
-        <div class="canvas-container top-canvas">
-          <h3>Top View</h3>
-          <canvas id="topView" width="400" height="300"></canvas>
-          <div class="canvas-controls">
-            <button id="topViewZoomIn" class="zoom-button">+</button>
-            <button id="topViewZoomOut" class="zoom-button">-</button>
-            <button id="topViewReset" class="zoom-button">Reset</button>
-          </div>
-        </div>
-        
-        <div class="canvas-container left-canvas">
-          <h3>Left View</h3>
-          <canvas id="leftView" width="400" height="300"></canvas>
-          <div class="canvas-controls">
-            <button id="leftViewZoomIn" class="zoom-button">+</button>
-            <button id="leftViewZoomOut" class="zoom-button">-</button>
-            <button id="leftViewReset" class="zoom-button">Reset</button>
-          </div>
-        </div>
-        
-        <div class="canvas-container right-canvas">
-          <h3>Front View</h3>
-          <canvas id="frontView" width="400" height="300"></canvas>
-          <div class="canvas-controls">
-            <button id="frontViewZoomIn" class="zoom-button">+</button>
-            <button id="frontViewZoomOut" class="zoom-button">-</button>
-            <button id="frontViewReset" class="zoom-button">Reset</button>
+        <div class="viewport-wrapper">
+          <div id="viewport3d" class="viewport-container"></div>
+          <div class="viewport-toolbar">
+            <div class="camera-controls">
+              <button id="orbitModeBtn" class="viewport-btn active" title="Orbit camera (rotate around scene)">Orbit</button>
+              <button id="fpModeBtn" class="viewport-btn" title="First-person view from eye position">First Person</button>
+              <button id="resetCameraBtn" class="viewport-btn" title="Reset camera to default position">Reset Camera</button>
+            </div>
+            <div class="gizmo-controls">
+              <button id="translateModeBtn" class="viewport-btn active" title="Translate mode (T)">Move</button>
+              <button id="rotateModeBtn" class="viewport-btn" title="Rotate mode (R)">Rotate</button>
+            </div>
           </div>
         </div>
       </div>

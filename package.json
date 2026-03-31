@@ -21,7 +21,8 @@
     "electron-builder": "^24.4.0"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "three": "^0.183.2"
   },
   "build": {
     "appId": "com.yourcompany.nodeviewcalibrator",

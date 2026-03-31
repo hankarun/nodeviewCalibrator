@@ -132,36 +132,72 @@ button:disabled {
   display: none; /* Hide the old visualization layout */
 }
 
-.canvas-container {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  text-align: center;
-  margin-bottom: 10px;
-  display: flex;
-  flex-direction: column;
-}
-
 h3 {
   margin-top: 0;
   color: #333;
   text-align: center;
 }
 
-canvas {
-  background-color: #f9f9f9;
-  border: 1px solid #ddd;
-  display: block;
-  margin: 0 auto;
-  width: 100%;
-  max-width: 400px;
-  height: auto;
-  cursor: grab; /* Indicate the canvas is draggable */
+.viewport-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  overflow: hidden;
 }
 
-canvas:active {
-  cursor: grabbing; /* Change cursor when actively dragging */
+.viewport-container {
+  flex: 1;
+  min-height: 500px;
+  position: relative;
+}
+
+.viewport-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.viewport-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+  gap: 10px;
+}
+
+.camera-controls,
+.gizmo-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.viewport-btn {
+  background-color: #555;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.viewport-btn:hover {
+  background-color: #444;
+}
+
+.viewport-btn.active {
+  background-color: #2196F3;
+}
+
+.viewport-btn.active:hover {
+  background-color: #1976D2;
 }
 
 #projectionResults {
@@ -212,32 +248,7 @@ canvas:active {
   padding: 20px 0;
 }
 
-.canvas-controls {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 10px;
-}
 
-.zoom-button {
-  background-color: #2196F3;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 5px 10px;
-  cursor: pointer;
-  font-weight: bold;
-  min-width: 40px;
-}
-
-.zoom-button:hover {
-  background-color: #0b7dda;
-}
-
-.zoom-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
 
 .file-operations {
   display: flex;
@@ -302,7 +313,6 @@ canvas:active {
   flex-direction: column;
   width: 40%;
   min-width: 400px;
-  gap: 15px;
 }
 
 .right-column {
@@ -328,12 +338,7 @@ canvas:active {
   display: none;
 }
 
-/* Adjust canvas sizes and spacing */
-.top-canvas,
-.left-canvas,
-.right-canvas {
-  flex: 0 0 auto;
-}
+
 
 .projection-summary {
   background-color: #ffffff;
