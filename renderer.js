@@ -210,10 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     selectedDisplayIndex = -1;
     fileInterface.createNew();
     updateDisplayList();
-    projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
-    updateDisplayBtn.disabled = true;
-    deleteDisplayBtn.disabled = true;
-    scene.clearDisplays();
+    projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
   }
 
   function handleOpenConfigFile() {
@@ -232,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
           selectedDisplayIndex = -1;
           updateDisplayBtn.disabled = true;
-          projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
+          projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
         }
       })
       .catch(error => console.error('Error opening file:', error));
@@ -264,8 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         updateDisplayBtn.disabled = true;
         deleteDisplayBtn.disabled = true;
-        projectionResults.innerHTML = '<div>Calculated corners will appear here</div>';
-        scene.selectDisplay(-1);
+        projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
       }
     }
   }

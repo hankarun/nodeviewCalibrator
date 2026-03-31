@@ -66,6 +66,7 @@ export function calculateDisplayProjection(display) {
 // Format calculation results for display
 export function formatDisplayCalculations(result, display = null, useStableCalculation = true, nearPlane = null) {
   const nearestPoint = result.offcenterProjection.nearestPoint;
+  const anglesToCorners = result.anglesToCorners;
 
   let edgeDistances;
 
@@ -112,7 +113,7 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
 
   return `
     <section class="projection-summary">
-      <header class="projection-header">Offcenter Projection Parameters (${modeLabel})</header>
+      <header class="projection-header">Offcenter Projection (${modeLabel})</header>
       <table class="projection-table">
         <tbody>
           <tr><th scope="row">Near Plane</th><td>${nearPlaneMeters}</td></tr>
@@ -122,6 +123,39 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
           <tr><th scope="row">Bottom</th><td>${formatMeters(scaledEdgeDistances.bottom)}</td></tr>
         </tbody>
       </table>
+    </section>
+    <section class="corner-angles-summary">
+      <header class="corner-angles-header">Corner Angles</header>
+      <div class="corner-angles-grid">
+        <div class="corner-angle-card">
+          <div class="corner-angle-label">Top-Left</div>
+          <div class="corner-angle-values">
+            <span>H: ${anglesToCorners[0].horizontal.toFixed(2)}°</span>
+            <span>V: ${anglesToCorners[0].vertical.toFixed(2)}°</span>
+          </div>
+        </div>
+        <div class="corner-angle-card">
+          <div class="corner-angle-label">Top-Right</div>
+          <div class="corner-angle-values">
+            <span>H: ${anglesToCorners[1].horizontal.toFixed(2)}°</span>
+            <span>V: ${anglesToCorners[1].vertical.toFixed(2)}°</span>
+          </div>
+        </div>
+        <div class="corner-angle-card">
+          <div class="corner-angle-label">Bottom-Left</div>
+          <div class="corner-angle-values">
+            <span>H: ${anglesToCorners[2].horizontal.toFixed(2)}°</span>
+            <span>V: ${anglesToCorners[2].vertical.toFixed(2)}°</span>
+          </div>
+        </div>
+        <div class="corner-angle-card">
+          <div class="corner-angle-label">Bottom-Right</div>
+          <div class="corner-angle-values">
+            <span>H: ${anglesToCorners[3].horizontal.toFixed(2)}°</span>
+            <span>V: ${anglesToCorners[3].vertical.toFixed(2)}°</span>
+          </div>
+        </div>
+      </div>
     </section>
   `;
 }

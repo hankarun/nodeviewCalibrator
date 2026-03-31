@@ -17,8 +17,7 @@
   }
   
   .left-column,
-  .middle-column,
-  .right-column {
+  .middle-column {
     width: 100%;
     margin-bottom: 20px;
   }
