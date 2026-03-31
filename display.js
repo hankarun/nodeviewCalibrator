@@ -1,25 +1,6 @@
 // This file contains display-related functionality and utilities
 
-import { calculateProjectionCorners } from './mathutils.js';
-
-function rotateVectorByDisplay(vector, yawRad, pitchRad, rollRad) {
-  // Apply roll (around Z)
-  const x1 = vector.x * Math.cos(rollRad) - vector.y * Math.sin(rollRad);
-  const y1 = vector.x * Math.sin(rollRad) + vector.y * Math.cos(rollRad);
-  const z1 = vector.z;
-
-  // Apply pitch (around X)
-  const y2 = y1 * Math.cos(pitchRad) - z1 * Math.sin(pitchRad);
-  const z2 = y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
-  const x2 = x1;
-
-  // Apply yaw (around Y)
-  const x3 = x2 * Math.cos(yawRad) - z2 * Math.sin(yawRad);
-  const z3 = x2 * Math.sin(yawRad) + z2 * Math.cos(yawRad);
-  const y3 = y2;
-
-  return { x: x3, y: y3, z: z3 };
-}
+import { calculateProjectionCorners, rotateVector } from './mathutils.js';
 
 function calculateDisplayAxes(display) {
   const yawRad = (display.yaw || 0) * Math.PI / 180;
@@ -27,8 +8,8 @@ function calculateDisplayAxes(display) {
   const rollRad = (display.roll || 0) * Math.PI / 180;
 
   return {
-    localX: rotateVectorByDisplay({ x: 1, y: 0, z: 0 }, yawRad, pitchRad, rollRad),
-    localY: rotateVectorByDisplay({ x: 0, y: 1, z: 0 }, yawRad, pitchRad, rollRad)
+    localX: rotateVector({ x: 1, y: 0, z: 0 }, yawRad, pitchRad, rollRad),
+    localY: rotateVector({ x: 0, y: 1, z: 0 }, yawRad, pitchRad, rollRad)
   };
 }
 
@@ -161,7 +142,7 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
 }
 
 // Calculate signed offsets from the nearest point to each display edge (left, right, top, bottom)
-// Provides stable edge calculations for rotated displays and includes magnitude helpers
+// Dispatches to stable or precise calculation based on flag
 export function calculateEdgeDistancesFromNearestPoint(display, useStableCalculation = true) {
   let result;
   let corners;
@@ -197,192 +178,80 @@ export function calculateEdgeDistancesFromNearestPoint(display, useStableCalcula
   const top = centerOnLocalY + halfHeight;
   const bottom = centerOnLocalY - halfHeight;
 
-  const magnitudes = {
-    left: Math.abs(left),
-    right: Math.abs(right),
-    top: Math.abs(top),
-    bottom: Math.abs(bottom)
-  };
+  const shared = { left, right, top, bottom, localX, localY, centerOnLocalX, centerOnLocalY };
 
   if (useStableCalculation) {
-    const nearestPoints = {
-      left: {
-        x: displayCenter.x - localX.x * halfWidth,
-        y: displayCenter.y - localX.y * halfWidth,
-        z: displayCenter.z - localX.z * halfWidth
-      },
-      right: {
-        x: displayCenter.x + localX.x * halfWidth,
-        y: displayCenter.y + localX.y * halfWidth,
-        z: displayCenter.z + localX.z * halfWidth
-      },
-      top: {
-        x: displayCenter.x + localY.x * halfHeight,
-        y: displayCenter.y + localY.y * halfHeight,
-        z: displayCenter.z + localY.z * halfHeight
-      },
-      bottom: {
-        x: displayCenter.x - localY.x * halfHeight,
-        y: displayCenter.y - localY.y * halfHeight,
-        z: displayCenter.z - localY.z * halfHeight
-      }
-    };
+    return calculateEdgeDistancesStable(display, shared);
+  }
+  return calculateEdgeDistancesPrecise(corners, shared);
+}
 
-    return {
-      left,
-      right,
-      top,
-      bottom,
-      nearestPoints,
-      localAxes: { x: localX, y: localY },
-      projections: { centerOnLocalX, centerOnLocalY },
-      magnitudes
+// Stable edge calculation — uses display center + local axes, minimizes changes when moving rotated displays
+function calculateEdgeDistancesStable(display, { left, right, top, bottom, localX, localY, centerOnLocalX, centerOnLocalY }) {
+  const halfWidth = display.width / 2;
+  const halfHeight = display.height / 2;
+  const displayCenter = { x: display.x, y: display.y, z: display.z };
+
+  const nearestPoints = {
+    left: {
+      x: displayCenter.x - localX.x * halfWidth,
+      y: displayCenter.y - localX.y * halfWidth,
+      z: displayCenter.z - localX.z * halfWidth
+    },
+    right: {
+      x: displayCenter.x + localX.x * halfWidth,
+      y: displayCenter.y + localX.y * halfWidth,
+      z: displayCenter.z + localX.z * halfWidth
+    },
+    top: {
+      x: displayCenter.x + localY.x * halfHeight,
+      y: displayCenter.y + localY.y * halfHeight,
+      z: displayCenter.z + localY.z * halfHeight
+    },
+    bottom: {
+      x: displayCenter.x - localY.x * halfHeight,
+      y: displayCenter.y - localY.y * halfHeight,
+      z: displayCenter.z - localY.z * halfHeight
+    }
+  };
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    nearestPoints,
+    localAxes: { x: localX, y: localY },
+    projections: { centerOnLocalX, centerOnLocalY },
+    magnitudes: {
+      left: Math.abs(left),
+      right: Math.abs(right),
+      top: Math.abs(top),
+      bottom: Math.abs(bottom)
+    }
+  };
+}
+
+// Precise edge calculation — projects eye onto each edge segment for exact nearest distances
+function calculateEdgeDistancesPrecise(corners, { left, right, top, bottom, localX, localY, centerOnLocalX, centerOnLocalY }) {
+  function edgeCalc(startCorner, edgeVector) {
+    const len = Math.sqrt(edgeVector.x ** 2 + edgeVector.y ** 2 + edgeVector.z ** 2);
+    const norm = { x: edgeVector.x / len, y: edgeVector.y / len, z: edgeVector.z / len };
+    const proj = -(startCorner.x * norm.x + startCorner.y * norm.y + startCorner.z * norm.z);
+    const t = Math.max(0, Math.min(len, proj));
+    const nearest = {
+      x: startCorner.x + norm.x * t,
+      y: startCorner.y + norm.y * t,
+      z: startCorner.z + norm.z * t
     };
+    const dist = Math.sqrt(nearest.x ** 2 + nearest.y ** 2 + nearest.z ** 2);
+    return { nearest, dist };
   }
 
-  const leftEdgeVector = {
-    x: corners[2].x - corners[0].x,
-    y: corners[2].y - corners[0].y,
-    z: corners[2].z - corners[0].z
-  };
-
-  const topEdgeVector = {
-    x: corners[1].x - corners[0].x,
-    y: corners[1].y - corners[0].y,
-    z: corners[1].z - corners[0].z
-  };
-
-  const rightEdgeVector = {
-    x: corners[3].x - corners[1].x,
-    y: corners[3].y - corners[1].y,
-    z: corners[3].z - corners[1].z
-  };
-
-  const bottomEdgeVector = {
-    x: corners[3].x - corners[2].x,
-    y: corners[3].y - corners[2].y,
-    z: corners[3].z - corners[2].z
-  };
-
-  const leftEdgeLength = Math.sqrt(
-    leftEdgeVector.x * leftEdgeVector.x +
-    leftEdgeVector.y * leftEdgeVector.y +
-    leftEdgeVector.z * leftEdgeVector.z
-  );
-
-  const topEdgeLength = Math.sqrt(
-    topEdgeVector.x * topEdgeVector.x +
-    topEdgeVector.y * topEdgeVector.y +
-    topEdgeVector.z * topEdgeVector.z
-  );
-
-  const rightEdgeLength = Math.sqrt(
-    rightEdgeVector.x * rightEdgeVector.x +
-    rightEdgeVector.y * rightEdgeVector.y +
-    rightEdgeVector.z * rightEdgeVector.z
-  );
-
-  const bottomEdgeLength = Math.sqrt(
-    bottomEdgeVector.x * bottomEdgeVector.x +
-    bottomEdgeVector.y * bottomEdgeVector.y +
-    bottomEdgeVector.z * bottomEdgeVector.z
-  );
-
-  const leftEdgeNormalized = {
-    x: leftEdgeVector.x / leftEdgeLength,
-    y: leftEdgeVector.y / leftEdgeLength,
-    z: leftEdgeVector.z / leftEdgeLength
-  };
-
-  const topEdgeNormalized = {
-    x: topEdgeVector.x / topEdgeLength,
-    y: topEdgeVector.y / topEdgeLength,
-    z: topEdgeVector.z / topEdgeLength
-  };
-
-  const rightEdgeNormalized = {
-    x: rightEdgeVector.x / rightEdgeLength,
-    y: rightEdgeVector.y / rightEdgeLength,
-    z: rightEdgeVector.z / rightEdgeLength
-  };
-
-  const bottomEdgeNormalized = {
-    x: bottomEdgeVector.x / bottomEdgeLength,
-    y: bottomEdgeVector.y / bottomEdgeLength,
-    z: bottomEdgeVector.z / bottomEdgeLength
-  };
-
-  const leftEdgeProjection = -(
-    corners[0].x * leftEdgeNormalized.x +
-    corners[0].y * leftEdgeNormalized.y +
-    corners[0].z * leftEdgeNormalized.z
-  );
-
-  const topEdgeProjection = -(
-    corners[0].x * topEdgeNormalized.x +
-    corners[0].y * topEdgeNormalized.y +
-    corners[0].z * topEdgeNormalized.z
-  );
-
-  const rightEdgeProjection = -(
-    corners[1].x * rightEdgeNormalized.x +
-    corners[1].y * rightEdgeNormalized.y +
-    corners[1].z * rightEdgeNormalized.z
-  );
-
-  const bottomEdgeProjection = -(
-    corners[2].x * bottomEdgeNormalized.x +
-    corners[2].y * bottomEdgeNormalized.y +
-    corners[2].z * bottomEdgeNormalized.z
-  );
-
-  const leftEdgeNearest = {
-    x: corners[0].x + leftEdgeNormalized.x * Math.max(0, Math.min(leftEdgeLength, leftEdgeProjection)),
-    y: corners[0].y + leftEdgeNormalized.y * Math.max(0, Math.min(leftEdgeLength, leftEdgeProjection)),
-    z: corners[0].z + leftEdgeNormalized.z * Math.max(0, Math.min(leftEdgeLength, leftEdgeProjection))
-  };
-
-  const topEdgeNearest = {
-    x: corners[0].x + topEdgeNormalized.x * Math.max(0, Math.min(topEdgeLength, topEdgeProjection)),
-    y: corners[0].y + topEdgeNormalized.y * Math.max(0, Math.min(topEdgeLength, topEdgeProjection)),
-    z: corners[0].z + topEdgeNormalized.z * Math.max(0, Math.min(topEdgeLength, topEdgeProjection))
-  };
-
-  const rightEdgeNearest = {
-    x: corners[1].x + rightEdgeNormalized.x * Math.max(0, Math.min(rightEdgeLength, rightEdgeProjection)),
-    y: corners[1].y + rightEdgeNormalized.y * Math.max(0, Math.min(rightEdgeLength, rightEdgeProjection)),
-    z: corners[1].z + rightEdgeNormalized.z * Math.max(0, Math.min(rightEdgeLength, rightEdgeProjection))
-  };
-
-  const bottomEdgeNearest = {
-    x: corners[2].x + bottomEdgeNormalized.x * Math.max(0, Math.min(bottomEdgeLength, bottomEdgeProjection)),
-    y: corners[2].y + bottomEdgeNormalized.y * Math.max(0, Math.min(bottomEdgeLength, bottomEdgeProjection)),
-    z: corners[2].z + bottomEdgeNormalized.z * Math.max(0, Math.min(bottomEdgeLength, bottomEdgeProjection))
-  };
-
-  const leftDistance = Math.sqrt(
-    leftEdgeNearest.x * leftEdgeNearest.x +
-    leftEdgeNearest.y * leftEdgeNearest.y +
-    leftEdgeNearest.z * leftEdgeNearest.z
-  );
-
-  const topDistance = Math.sqrt(
-    topEdgeNearest.x * topEdgeNearest.x +
-    topEdgeNearest.y * topEdgeNearest.y +
-    topEdgeNearest.z * topEdgeNearest.z
-  );
-
-  const rightDistance = Math.sqrt(
-    rightEdgeNearest.x * rightEdgeNearest.x +
-    rightEdgeNearest.y * rightEdgeNearest.y +
-    rightEdgeNearest.z * rightEdgeNearest.z
-  );
-
-  const bottomDistance = Math.sqrt(
-    bottomEdgeNearest.x * bottomEdgeNearest.x +
-    bottomEdgeNearest.y * bottomEdgeNearest.y +
-    bottomEdgeNearest.z * bottomEdgeNearest.z
-  );
+  const leftEdge = edgeCalc(corners[0], { x: corners[2].x - corners[0].x, y: corners[2].y - corners[0].y, z: corners[2].z - corners[0].z });
+  const topEdge = edgeCalc(corners[0], { x: corners[1].x - corners[0].x, y: corners[1].y - corners[0].y, z: corners[1].z - corners[0].z });
+  const rightEdge = edgeCalc(corners[1], { x: corners[3].x - corners[1].x, y: corners[3].y - corners[1].y, z: corners[3].z - corners[1].z });
+  const bottomEdge = edgeCalc(corners[2], { x: corners[3].x - corners[2].x, y: corners[3].y - corners[2].y, z: corners[3].z - corners[2].z });
 
   return {
     left,
@@ -390,18 +259,18 @@ export function calculateEdgeDistancesFromNearestPoint(display, useStableCalcula
     top,
     bottom,
     nearestPoints: {
-      left: leftEdgeNearest,
-      top: topEdgeNearest,
-      right: rightEdgeNearest,
-      bottom: bottomEdgeNearest
+      left: leftEdge.nearest,
+      top: topEdge.nearest,
+      right: rightEdge.nearest,
+      bottom: bottomEdge.nearest
     },
     localAxes: { x: localX, y: localY },
     projections: { centerOnLocalX, centerOnLocalY },
     magnitudes: {
-      left: leftDistance,
-      right: rightDistance,
-      top: topDistance,
-      bottom: bottomDistance
+      left: leftEdge.dist,
+      right: rightEdge.dist,
+      top: topEdge.dist,
+      bottom: bottomEdge.dist
     }
   };
 }

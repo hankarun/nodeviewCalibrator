@@ -2,6 +2,30 @@
  * Math utility functions for 3D display calibration
  */
 
+/**
+ * Apply roll → pitch → yaw rotation to a vector.
+ * @param {{x:number, y:number, z:number}} v - Input vector
+ * @param {number} yawRad - Yaw in radians (around Y)
+ * @param {number} pitchRad - Pitch in radians (around X)
+ * @param {number} rollRad - Roll in radians (around Z)
+ * @returns {{x:number, y:number, z:number}}
+ */
+export function rotateVector(v, yawRad, pitchRad, rollRad) {
+  // Roll (around Z)
+  const x1 = v.x * Math.cos(rollRad) - v.y * Math.sin(rollRad);
+  const y1 = v.x * Math.sin(rollRad) + v.y * Math.cos(rollRad);
+  const z1 = v.z;
+  // Pitch (around X)
+  const y2 = y1 * Math.cos(pitchRad) - z1 * Math.sin(pitchRad);
+  const z2 = y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
+  const x2 = x1;
+  // Yaw (around Y)
+  const x3 = x2 * Math.cos(yawRad) - z2 * Math.sin(yawRad);
+  const z3 = x2 * Math.sin(yawRad) + z2 * Math.cos(yawRad);
+  const y3 = y2;
+  return { x: x3, y: y3, z: z3 };
+}
+
 // Function to calculate nearest point on display plane from eye position (0,0,0)
 function calculateNearestPointOnPlane(display) {
   const { x, y, z, yaw, pitch, roll } = display;
@@ -74,24 +98,7 @@ function calculateProjectionCorners(display) {
     { x: halfWidth, y: -halfHeight, z: 0 }
   ];
     // Apply rotations (roll, pitch, yaw in that order)
-  const rotatedCorners = corners.map(corner => {
-    // Apply roll (around Z)
-    let x1 = corner.x * Math.cos(rollRad) - corner.y * Math.sin(rollRad);
-    let y1 = corner.x * Math.sin(rollRad) + corner.y * Math.cos(rollRad);
-    let z1 = corner.z;
-    
-    // Apply pitch (around X)
-    let y2 = y1 * Math.cos(pitchRad) - z1 * Math.sin(pitchRad);
-    let z2 = y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
-    let x2 = x1;
-    
-    // Apply yaw (around Y)
-    let x3 = x2 * Math.cos(yawRad) - z2 * Math.sin(yawRad);
-    let z3 = x2 * Math.sin(yawRad) + z2 * Math.cos(yawRad);
-    let y3 = y2;
-    
-    return { x: x3, y: y3, z: z3 };
-  });
+  const rotatedCorners = corners.map(corner => rotateVector(corner, yawRad, pitchRad, rollRad));
   
   // Apply translation (position)
   const finalCorners = rotatedCorners.map(corner => {

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { rotateVector } from './mathutils.js';
 
 // Display material colors
 const DISPLAY_COLOR = 0x4488ff;
@@ -630,19 +631,8 @@ export class SceneRenderer {
     ];
 
     const worldCorners = localCorners.map(c => {
-      // Roll around Z
-      let x1 = c.x * Math.cos(rollRad) - c.y * Math.sin(rollRad);
-      let y1 = c.x * Math.sin(rollRad) + c.y * Math.cos(rollRad);
-      let z1 = c.z;
-      // Pitch around X
-      let y2 = y1 * Math.cos(pitchRad) - z1 * Math.sin(pitchRad);
-      let z2 = y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
-      let x2 = x1;
-      // Yaw around Y
-      let x3 = x2 * Math.cos(yawRad) - z2 * Math.sin(yawRad);
-      let z3 = x2 * Math.sin(yawRad) + z2 * Math.cos(yawRad);
-      let y3 = y2;
-      return new THREE.Vector3(x3 + x, y3 + y, z3 + z);
+      const r = rotateVector(c, yawRad, pitchRad, rollRad);
+      return new THREE.Vector3(r.x + x, r.y + y, r.z + z);
     });
 
     const eyePos = new THREE.Vector3(0, 0, 0);

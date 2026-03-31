@@ -32,13 +32,6 @@ class FileInterface {
       console.log('FileInterface: Initialized for Electron environment');
     } else {
       console.log('FileInterface: Initialized for Web environment');
-      // Load web-specific modules
-      try {
-        const webOps = await import('./web/web-fileOperations.js');
-        this.webAPI = webOps.webAPI;
-      } catch (error) {
-        console.warn('Could not load web file operations:', error);
-      }
     }
   }
 
@@ -407,28 +400,4 @@ export async function getFileInterface() {
     await fileInterface.init();
   }
   return fileInterface;
-}
-
-/**
- * Legacy compatibility functions for existing code
- */
-
-export async function createNewConfig() {
-  const fi = await getFileInterface();
-  return fi.createNew();
-}
-
-export async function openConfigFile() {
-  const fi = await getFileInterface();
-  return await fi.openFile();
-}
-
-export async function saveConfig(displays, currentFilePath) {
-  const fi = await getFileInterface();
-  return await fi.saveFile(displays, false);
-}
-
-export async function saveConfigAs(displays) {
-  const fi = await getFileInterface();
-  return await fi.saveFile(displays, true);
 }

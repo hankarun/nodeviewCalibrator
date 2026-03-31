@@ -4,18 +4,11 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from the project root
+// Serve static files from the web directory (web-renderer.js, web-styles.css, etc.)
+app.use(express.static(__dirname));
+
+// Serve static files from the project root (renderer-core.js, styles.css, etc.)
 app.use(express.static(path.join(__dirname, '..')));
-
-// Serve the web version at the root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Handle SPA routing - send all requests to index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 app.listen(PORT, () => {
   console.log(`Node View Calibrator web server running at http://localhost:${PORT}`);
