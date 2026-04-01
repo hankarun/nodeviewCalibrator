@@ -2,10 +2,14 @@
 
 import { calculateProjectionCorners, rotateVector } from './mathutils.js';
 
+// Compute the camera's local X and Y axes in world space.
+// When cameraYaw/cameraPitch/cameraRoll are set on the display those values are
+// used; otherwise the display's own orientation is used (default: camera faces
+// the display perpendicularly so the near plane is parallel to the display).
 function calculateDisplayAxes(display) {
-  const yawRad = (display.yaw || 0) * Math.PI / 180;
-  const pitchRad = (display.pitch || 0) * Math.PI / 180;
-  const rollRad = (display.roll || 0) * Math.PI / 180;
+  const yawRad   = ((display.cameraYaw   !== undefined ? display.cameraYaw   : display.yaw)   || 0) * Math.PI / 180;
+  const pitchRad = ((display.cameraPitch !== undefined ? display.cameraPitch : display.pitch) || 0) * Math.PI / 180;
+  const rollRad  = ((display.cameraRoll  !== undefined ? display.cameraRoll  : display.roll)  || 0) * Math.PI / 180;
 
   return {
     localX: rotateVector({ x: 1, y: 0, z: 0 }, yawRad, pitchRad, rollRad),
@@ -33,6 +37,18 @@ export function createDisplayFromInputs(inputs) {
   // Optional per-display near plane override (null = use computed nearest point distance)
   if (inputs.nearPlane !== undefined && inputs.nearPlane !== null && inputs.nearPlane !== '') {
     result.nearPlane = parseFloat(inputs.nearPlane);
+  }
+  // Optional per-display camera rotation override.
+  // When not set the camera defaults to the display's own orientation so that
+  // the near plane is automatically parallel to the display surface.
+  if (inputs.cameraYaw !== undefined && inputs.cameraYaw !== null && inputs.cameraYaw !== '') {
+    result.cameraYaw = parseFloat(inputs.cameraYaw);
+  }
+  if (inputs.cameraPitch !== undefined && inputs.cameraPitch !== null && inputs.cameraPitch !== '') {
+    result.cameraPitch = parseFloat(inputs.cameraPitch);
+  }
+  if (inputs.cameraRoll !== undefined && inputs.cameraRoll !== null && inputs.cameraRoll !== '') {
+    result.cameraRoll = parseFloat(inputs.cameraRoll);
   }
   return result;
 }
@@ -294,27 +310,33 @@ export function formatEdgeDistances(edgeDistances) {
 export function getNearPlaneFrustum(display, nearDistance = 0.1) {
   const result = calculateProjectionCorners(display);
   const nearestPoint = result.offcenterProjection.nearestPoint;
-  const eyeToNearestDistance = nearestPoint.distance;
-  
-  // Scale factor to convert from eye-to-nearest to eye-to-near plane
+
+  // Use the absolute perpendicular distance to the display plane as the depth.
+  // nearestPoint.distance is negative (plane is in front of the eye), so we
+  // negate it to obtain a positive scale factor.
+  const eyeToNearestDistance = Math.abs(nearestPoint.distance);
+
+  if (eyeToNearestDistance < 0.0001) {
+    return { nearDistance, left: 0, right: 0, top: 0, bottom: 0 };
+  }
+
+  // cornersRelativeToNearest is expressed in camera-local space (see calculateProjectionCorners).
+  // Their x/y components are the horizontal/vertical offsets from the nearest point.
+  // Scale these offsets from the display-plane depth to the requested near plane distance.
   const scaleFactor = nearDistance / eyeToNearestDistance;
-  
-  // Scale the corner vectors to near plane distance
-  const scaledCorners = result.cornersRelativeToNearest.map(corner => {
-    return {
-      x: corner.x * scaleFactor,
-      y: corner.y * scaleFactor,
-      z: corner.z * scaleFactor
-    };
-  });
-  
-  // Extract the frustum values (top, right, bottom, left)
+
+  const scaledCorners = result.cornersRelativeToNearest.map(corner => ({
+    x: corner.x * scaleFactor,
+    y: corner.y * scaleFactor,
+    z: corner.z * scaleFactor
+  }));
+
   return {
     nearDistance,
-    top: scaledCorners[0].y,       // Top (y-coordinate of top-left corner)
-    left: scaledCorners[0].x,      // Left (x-coordinate of top-left corner)
-    right: scaledCorners[1].x,     // Right (x-coordinate of top-right corner)
-    bottom: scaledCorners[2].y     // Bottom (y-coordinate of bottom-left corner)
+    top:    scaledCorners[0].y,  // y of top-left corner
+    left:   scaledCorners[0].x,  // x of top-left corner
+    right:  scaledCorners[1].x,  // x of top-right corner
+    bottom: scaledCorners[2].y   // y of bottom-left corner
   };
 }
 

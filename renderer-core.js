@@ -38,6 +38,11 @@ export async function initApp() {
   // Per-display near plane input
   const nearPlaneInput = document.getElementById('nearPlane');
 
+  // Per-display camera rotation overrides
+  const cameraYawInput   = document.getElementById('cameraYaw');
+  const cameraPitchInput = document.getElementById('cameraPitch');
+  const cameraRollInput  = document.getElementById('cameraRoll');
+
   // Viewport control buttons
   const orbitModeBtn = document.getElementById('orbitModeBtn');
   const fpModeBtn = document.getElementById('fpModeBtn');
@@ -258,6 +263,11 @@ export async function initApp() {
         nearPlaneInput.value = display.nearPlane != null ? display.nearPlane : '';
       }
 
+      // Populate per-display camera rotation inputs
+      if (cameraYawInput)   cameraYawInput.value   = display.cameraYaw   != null ? display.cameraYaw   : '';
+      if (cameraPitchInput) cameraPitchInput.value = display.cameraPitch != null ? display.cameraPitch : '';
+      if (cameraRollInput)  cameraRollInput.value  = display.cameraRoll  != null ? display.cameraRoll  : '';
+
       updateDisplayBtn.disabled = false;
       deleteDisplayBtn.disabled = false;
 
@@ -303,7 +313,10 @@ export async function initApp() {
       x: displayOffsetXInput.value,
       y: displayOffsetYInput.value,
       z: displayOffsetZInput.value,
-      nearPlane: nearPlaneInput && nearPlaneInput.value !== '' ? nearPlaneInput.value : null
+      nearPlane: nearPlaneInput && nearPlaneInput.value !== '' ? nearPlaneInput.value : null,
+      cameraYaw:   cameraYawInput   && cameraYawInput.value   !== '' ? cameraYawInput.value   : null,
+      cameraPitch: cameraPitchInput && cameraPitchInput.value !== '' ? cameraPitchInput.value : null,
+      cameraRoll:  cameraRollInput  && cameraRollInput.value  !== '' ? cameraRollInput.value  : null
     };
     return createDisplayFromInputs(inputs);
   }

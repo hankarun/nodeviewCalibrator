@@ -26,6 +26,31 @@ export function rotateVector(v, yawRad, pitchRad, rollRad) {
   return { x: x3, y: y3, z: z3 };
 }
 
+/**
+ * Apply the inverse of roll → pitch → yaw rotation to a vector.
+ * This is the exact inverse: (-yaw) → (-pitch) → (-roll), applied in that order.
+ * @param {{x:number, y:number, z:number}} v - Input vector
+ * @param {number} yawRad - Yaw in radians (around Y)
+ * @param {number} pitchRad - Pitch in radians (around X)
+ * @param {number} rollRad - Roll in radians (around Z)
+ * @returns {{x:number, y:number, z:number}}
+ */
+export function inverseRotateVector(v, yawRad, pitchRad, rollRad) {
+  // Inverse Yaw (around Y, by -yaw)
+  const x1 = v.x * Math.cos(yawRad) + v.z * Math.sin(yawRad);
+  const z1 = -v.x * Math.sin(yawRad) + v.z * Math.cos(yawRad);
+  const y1 = v.y;
+  // Inverse Pitch (around X, by -pitch)
+  const y2 = y1 * Math.cos(pitchRad) + z1 * Math.sin(pitchRad);
+  const z2 = -y1 * Math.sin(pitchRad) + z1 * Math.cos(pitchRad);
+  const x2 = x1;
+  // Inverse Roll (around Z, by -roll)
+  const x3 = x2 * Math.cos(rollRad) + y2 * Math.sin(rollRad);
+  const y3 = -x2 * Math.sin(rollRad) + y2 * Math.cos(rollRad);
+  const z3 = z2;
+  return { x: x3, y: y3, z: z3 };
+}
+
 // Function to calculate nearest point on display plane from eye position (0,0,0)
 function calculateNearestPointOnPlane(display) {
   const { x, y, z, yaw, pitch, roll } = display;
@@ -76,152 +101,145 @@ function calculateNearestPointOnPlane(display) {
 
 // Function to calculate offcenter projection parameters based on nearest point
 function calculateProjectionCorners(display) {
-  const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
-  
-  // Convert angles to radians
-  const yawRad = yaw * Math.PI / 180;
+  const { width, height, yaw, pitch, roll, x, y, z } = display;
+
+  // Camera rotation defaults to display's orientation so the near plane is parallel to the display.
+  // Users can override with explicit cameraYaw / cameraPitch / cameraRoll on the display object.
+  const cameraYaw   = display.cameraYaw   !== undefined ? display.cameraYaw   : yaw;
+  const cameraPitch = display.cameraPitch !== undefined ? display.cameraPitch : pitch;
+  const cameraRoll  = display.cameraRoll  !== undefined ? display.cameraRoll  : roll;
+
+  // Convert display angles to radians
+  const yawRad   = yaw   * Math.PI / 180;
   const pitchRad = pitch * Math.PI / 180;
-  const rollRad = roll * Math.PI / 180;
-  
-  // First, calculate the nearest point on the plane
+  const rollRad  = roll  * Math.PI / 180;
+
+  // Convert camera angles to radians
+  const cameraYawRad   = cameraYaw   * Math.PI / 180;
+  const cameraPitchRad = cameraPitch * Math.PI / 180;
+  const cameraRollRad  = cameraRoll  * Math.PI / 180;
+
+  // First, calculate the nearest point on the display plane from the eye (origin)
   const nearestPoint = calculateNearestPointOnPlane(display);
-  
-  // Calculate corners in display space
-  const halfWidth = width / 2;
+
+  // Calculate corners in display local space
+  const halfWidth  = width  / 2;
   const halfHeight = height / 2;
-  
-  // Top-left, top-right, bottom-right, bottom-left (in display local space)
+
+  // Top-left, top-right, bottom-left, bottom-right (in display local space)
   const corners = [
-    { x: -halfWidth, y: halfHeight, z: 0 },
-    { x: halfWidth, y: halfHeight, z: 0 },
-    { x: -halfWidth, y: -halfHeight, z: 0 },
-    { x: halfWidth, y: -halfHeight, z: 0 }
+    { x: -halfWidth,  y:  halfHeight, z: 0 },
+    { x:  halfWidth,  y:  halfHeight, z: 0 },
+    { x: -halfWidth,  y: -halfHeight, z: 0 },
+    { x:  halfWidth,  y: -halfHeight, z: 0 }
   ];
-    // Apply rotations (roll, pitch, yaw in that order)
+
+  // Rotate corners to world space (roll → pitch → yaw)
   const rotatedCorners = corners.map(corner => rotateVector(corner, yawRad, pitchRad, rollRad));
-  
-  // Apply translation (position)
-  const finalCorners = rotatedCorners.map(corner => {
-    return {
-      x: corner.x + x,
-      y: corner.y + y,
-      z: corner.z + z
-    };
-  });
-  
-  // Calculate display center position after rotation and translation
-  const displayCenter = { x, y, z };
-  
-  // Calculate distance from eye to display center
-  const eyeToDisplayDistance = Math.sqrt(
-    displayCenter.x * displayCenter.x + 
-    displayCenter.y * displayCenter.y + 
-    displayCenter.z * displayCenter.z
+
+  // Translate to world position
+  const finalCorners = rotatedCorners.map(corner => ({
+    x: corner.x + x,
+    y: corner.y + y,
+    z: corner.z + z
+  }));
+
+  // Distance from eye to display centre
+  const eyeToDisplayDistance = Math.sqrt(x * x + y * y + z * z);
+
+  // --- Transform corners to camera-local space ---
+  // Applying the inverse of the camera rotation brings world-space corner positions
+  // into the coordinate frame where the camera faces straight ahead (+Z).
+  // In this frame, left/right/top/bottom are simply the x/y extents of the corners.
+  const cameraLocalCorners = finalCorners.map(corner =>
+    inverseRotateVector(corner, cameraYawRad, cameraPitchRad, cameraRollRad)
   );
-  
-  // Calculate vectors from nearest point to each corner
-  const cornersRelativeToNearest = finalCorners.map(corner => {
-    return {
-      x: corner.x - nearestPoint.x,
-      y: corner.y - nearestPoint.y,
-      z: corner.z - nearestPoint.z
-    };
-  });
-  
-  // Calculate distances from eye to each corner
-  const cornerDistances = finalCorners.map(corner => {
-    return Math.sqrt(
-      corner.x * corner.x + 
-      corner.y * corner.y + 
-      corner.z * corner.z
+
+  // Nearest point in camera-local space (used to compute relative corner offsets)
+  const cameraLocalNearestPoint = inverseRotateVector(
+    nearestPoint, cameraYawRad, cameraPitchRad, cameraRollRad
+  );
+
+  // Corners relative to the nearest point, expressed in camera-local space.
+  // When the camera rotation equals the display rotation the display plane is
+  // perpendicular to the camera's forward axis, so these vectors lie in the XY
+  // plane (z ≈ 0) and their x/y components give the correct frustum offsets.
+  const cornersRelativeToNearest = cameraLocalCorners.map(corner => ({
+    x: corner.x - cameraLocalNearestPoint.x,
+    y: corner.y - cameraLocalNearestPoint.y,
+    z: corner.z - cameraLocalNearestPoint.z
+  }));
+
+  // Distances from eye to each corner (world space, unchanged)
+  const cornerDistances = finalCorners.map(corner =>
+    Math.sqrt(corner.x * corner.x + corner.y * corner.y + corner.z * corner.z)
+  );
+
+  // --- Angles to corners computed in camera-local space ---
+  // atan2(x, z) gives the horizontal angle and atan2(y, z) the vertical angle
+  // relative to the camera's forward axis, which is the correct reference for
+  // the frustum regardless of how the display is rotated in world space.
+  const anglesToCorners = cameraLocalCorners.map(localCorner => {
+    const dist = Math.sqrt(
+      localCorner.x * localCorner.x +
+      localCorner.y * localCorner.y +
+      localCorner.z * localCorner.z
     );
-  });
-  
-  // Calculate vectors from eye to each corner
-  const eyeToCornerVectors = finalCorners.map(corner => {
     return {
-      x: corner.x,
-      y: corner.y,
-      z: corner.z
+      horizontal: Math.atan2(localCorner.x, localCorner.z) * 180 / Math.PI,
+      vertical:   Math.atan2(localCorner.y, localCorner.z) * 180 / Math.PI,
+      distance: dist
     };
   });
-  
-  // Calculate angles from eye to each corner
-  const anglesToCorners = eyeToCornerVectors.map(vector => {
-    const distance = Math.sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
-    return {
-      horizontal: Math.atan2(vector.x, vector.z) * 180 / Math.PI,
-      vertical: Math.atan2(vector.y, vector.z) * 180 / Math.PI,
-      distance
-    };
-  });
-  
-  // Find the extents of these angles for the offcenter projection
-  const left = Math.min(anglesToCorners[0].horizontal, anglesToCorners[2].horizontal);
-  const right = Math.max(anglesToCorners[1].horizontal, anglesToCorners[3].horizontal);
-  const bottom = Math.min(anglesToCorners[2].vertical, anglesToCorners[3].vertical);
-  const top = Math.max(anglesToCorners[0].vertical, anglesToCorners[1].vertical);
-  
-  // Calculate offcenter projection parameters with respect to the nearest point
-  // Project corner vectors to a plane at distance 1 from the eye
-  const normalizedCorners = eyeToCornerVectors.map(vector => {
-    // Only normalize if z is not 0 to avoid division by zero
-    if (Math.abs(vector.z) > 0.0001) {
+
+  // Angle extents (left/right/top/bottom in degrees, camera-local)
+  const left   = Math.min(anglesToCorners[0].horizontal, anglesToCorners[2].horizontal);
+  const right  = Math.max(anglesToCorners[1].horizontal, anglesToCorners[3].horizontal);
+  const bottom = Math.min(anglesToCorners[2].vertical,   anglesToCorners[3].vertical);
+  const top    = Math.max(anglesToCorners[0].vertical,   anglesToCorners[1].vertical);
+
+  // Normalized corners: perspective-projected to the z=1 plane in camera-local space.
+  // These give the frustum extents in metres at unit depth.
+  const normalizedCorners = cameraLocalCorners.map(localCorner => {
+    if (Math.abs(localCorner.z) > 0.0001) {
       return {
-        x: vector.x / vector.z,
-        y: vector.y / vector.z,
-        z: 1
-      };
-    } else {
-      // If z is close to 0, use a large value to represent "infinity"
-      return {
-        x: vector.x > 0 ? 1000 : -1000,
-        y: vector.y > 0 ? 1000 : -1000,
+        x: localCorner.x / localCorner.z,
+        y: localCorner.y / localCorner.z,
         z: 1
       };
     }
+    return {
+      x: localCorner.x > 0 ? 1000 : -1000,
+      y: localCorner.y > 0 ? 1000 : -1000,
+      z: 1
+    };
   });
-  
-  // Find the extents in the normalized space (these are the actual meters at z=1)
-  const leftM = Math.min(normalizedCorners[0].x, normalizedCorners[2].x);
-  const rightM = Math.max(normalizedCorners[1].x, normalizedCorners[3].x);
+
+  const leftM   = Math.min(normalizedCorners[0].x, normalizedCorners[2].x);
+  const rightM  = Math.max(normalizedCorners[1].x, normalizedCorners[3].x);
   const bottomM = Math.min(normalizedCorners[2].y, normalizedCorners[3].y);
-  const topM = Math.max(normalizedCorners[0].y, normalizedCorners[1].y);
-  
-  // Calculate the distance from eye to nearest point
+  const topM    = Math.max(normalizedCorners[0].y, normalizedCorners[1].y);
+
   const eyeToNearestDistance = nearestPoint.distance;
-  
-  // Calculate the projection of each corner onto the normal vector
-  const cornerProjectedDistances = finalCorners.map(corner => {
-    return corner.x * nearestPoint.normal.x + 
-           corner.y * nearestPoint.normal.y + 
-           corner.z * nearestPoint.normal.z;
-  });
-  
-  // Calculate offcenter projection based on the nearest point
+
+  // Projection of each corner onto the display plane normal (world space, for reference)
+  const cornerProjectedDistances = finalCorners.map(corner =>
+    corner.x * nearestPoint.normal.x +
+    corner.y * nearestPoint.normal.y +
+    corner.z * nearestPoint.normal.z
+  );
+
   const offcenterProjection = {
-    // Position of the nearest point (eye's perpendicular projection onto the plane)
-    nearestPoint: nearestPoint,
-    
-    // Corners positions relative to the nearest point
-    cornersRelativeToNearest: cornersRelativeToNearest,
-    
-    // Distance from eye to nearest point
-    eyeToNearestDistance: eyeToNearestDistance,
-    
-    // Eye to display center distance (for reference)
-    eyeToDisplayDistance: eyeToDisplayDistance,
-    
-    // Field of view angles (from eye's perspective)
+    nearestPoint,
+    cornersRelativeToNearest,
+    eyeToNearestDistance,
+    eyeToDisplayDistance,
     fovHorizontal: right - left,
-    fovVertical: top - bottom,
-    
-    // Asymmetry ratios (for offcenter projection)
-    // These values show how much the projection is offset from center
+    fovVertical:   top   - bottom,
     horizontalAsymmetry: (right + left) / (right - left),
-    verticalAsymmetry: (top + bottom) / (top - bottom)
+    verticalAsymmetry:   (top  + bottom) / (top  - bottom)
   };
-  
+
   return {
     corners: finalCorners,
     anglesToCorners,
@@ -233,14 +251,8 @@ function calculateProjectionCorners(display) {
     cornersRelativeToNearest,
     offcenterProjection,
     projection: {
-      left,
-      right,
-      bottom,
-      top,
-      leftM,
-      rightM,
-      bottomM,
-      topM
+      left, right, bottom, top,
+      leftM, rightM, bottomM, topM
     }
   };
 }
