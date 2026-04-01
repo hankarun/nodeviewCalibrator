@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Node View Calibrator</title>
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-X2vNHDiwbCgo45V4Lw9Nugbi5Y8Nk6Ce8nFfE/Lg6Ss='; worker-src 'self' blob:;">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-X2vNHDiwbCgo45V4Lw9Nugbi5Y8Nk6Ce8nFfE/Lg6Ss='; worker-src 'self' blob:; connect-src 'self' file:;">
   <script type="importmap">
   {
     "imports": {
@@ -99,6 +99,43 @@
             <button id="addDisplayBtn">Add Display</button>
             <button id="updateDisplayBtn" disabled>Update Display</button>
             <button id="deleteDisplayBtn" disabled>Delete Display</button>
+          </div>
+        </div>
+
+        <div class="input-group model-section">
+          <h2>3D Model</h2>
+          <div class="button-row">
+            <button id="loadFbxBtn">Load FBX</button>
+            <button id="removeFbxBtn" disabled>Remove Model</button>
+          </div>
+          <div id="fbxFileName" class="model-filename">No model loaded</div>
+          <div class="input-row">
+            <label for="modelPosX">X position (m):</label>
+            <input type="number" id="modelPosX" value="0" step="0.01" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelPosY">Y position (m):</label>
+            <input type="number" id="modelPosY" value="0" step="0.01" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelPosZ">Z position (m):</label>
+            <input type="number" id="modelPosZ" value="0" step="0.01" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelRotYaw">Yaw (degrees):</label>
+            <input type="number" id="modelRotYaw" value="0" step="1" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelRotPitch">Pitch (degrees):</label>
+            <input type="number" id="modelRotPitch" value="0" step="1" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelRotRoll">Roll (degrees):</label>
+            <input type="number" id="modelRotRoll" value="0" step="1" disabled>
+          </div>
+          <div class="input-row">
+            <label for="modelScale">Scale:</label>
+            <input type="number" id="modelScale" value="1" step="0.01" min="0.001" disabled>
           </div>
         </div>
       </div>

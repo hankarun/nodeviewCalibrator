@@ -89,6 +89,17 @@ input {
   margin-top: 15px;
 }
 
+.model-filename {
+  font-size: 0.85em;
+  color: #888;
+  margin: 8px 0;
+  word-break: break-all;
+}
+
+.model-section h2 {
+  margin-top: 0;
+}
+
 .main-header{
   display: flex; 
   align-items: center; 

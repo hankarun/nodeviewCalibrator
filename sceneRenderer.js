@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { rotateVector } from './mathutils.js';
 
 // Display material colors
@@ -29,6 +30,10 @@ export class SceneRenderer {
     this.gizmoMode = 'translate';  // 'translate' or 'rotate'
     this.onDisplayChange = null;   // Callback: (index, {x, y, z, yaw, pitch, roll}) => void
     this.onDisplaySelect = null;   // Callback: (index) => void
+    this.onModelChange = null;     // Callback: ({x, y, z, yaw, pitch, roll, scale}) => void
+    this.onModelSelect = null;     // Callback: (selected: boolean) => void
+    this.fbxModel = null;          // Currently loaded FBX model root
+    this.modelSelected = false;    // Whether the FBX model is currently selected
     this.animationId = null;
     this._isPointerDown = false;
     this._pointerDownPos = new THREE.Vector2();
@@ -167,8 +172,23 @@ export class SceneRenderer {
       this.orbitControls.enabled = !event.value;
     });
 
-    // When the gizmo moves/rotates a display, sync back to the data model
+    // When the gizmo moves/rotates a display or model, sync back to the data model
     this.transformControls.addEventListener('change', () => {
+      // Handle FBX model gizmo changes
+      if (this.modelSelected && this.fbxModel) {
+        const pos = this.fbxModel.position;
+        const euler = this.fbxModel.rotation;
+        const s = this.fbxModel.scale.x;
+        const yaw = -THREE.MathUtils.radToDeg(euler.y);
+        const pitch = THREE.MathUtils.radToDeg(euler.x);
+        const roll = THREE.MathUtils.radToDeg(euler.z);
+        if (this.onModelChange) {
+          this.onModelChange({ x: pos.x, y: pos.y, z: pos.z, yaw, pitch, roll, scale: s });
+        }
+        return;
+      }
+
+      // Handle display gizmo changes
       if (this.selectedIndex < 0) return;
       const group = this.displayMeshes[this.selectedIndex];
       if (!group) return;
@@ -277,12 +297,32 @@ export class SceneRenderer {
       });
     });
 
-    const intersects = this.raycaster.intersectObjects(targets);
+    // Collect FBX model meshes for intersection
+    const modelTargets = [];
+    if (this.fbxModel) {
+      this.fbxModel.traverse((child) => {
+        if (child.isMesh) {
+          child.userData.isFBXModelMesh = true;
+          modelTargets.push(child);
+        }
+      });
+    }
+
+    const allTargets = [...targets, ...modelTargets];
+    const intersects = this.raycaster.intersectObjects(allTargets);
     if (intersects.length > 0) {
-      const idx = intersects[0].object.userData.displayIndex;
-      if (this.onDisplaySelect) this.onDisplaySelect(idx);
+      const hit = intersects[0].object;
+      if (hit.userData.isFBXModelMesh) {
+        // Clicked on FBX model
+        this.selectModel();
+      } else {
+        const idx = hit.userData.displayIndex;
+        this.deselectModel();
+        if (this.onDisplaySelect) this.onDisplaySelect(idx);
+      }
     } else {
-      // Click on background → deselect
+      // Click on background → deselect all
+      this.deselectModel();
       if (this.onDisplaySelect) this.onDisplaySelect(-1);
     }
   }
@@ -516,6 +556,146 @@ export class SceneRenderer {
     if (this.renderer.domElement.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
     }
+  }
+
+  // --- FBX Model API ---
+
+  /**
+   * Load an FBX model from a file path (Electron/local)
+   * @param {string} filePath - Path to the .fbx file
+   * @returns {Promise<THREE.Group>}
+   */
+  loadFBXModel(filePath) {
+    return new Promise((resolve, reject) => {
+      const loader = new FBXLoader();
+      loader.load(filePath, (object) => {
+        this._setupFBXModel(object);
+        resolve(object);
+      }, undefined, (error) => {
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * Load an FBX model from an ArrayBuffer (Web)
+   * @param {ArrayBuffer} buffer - FBX file data
+   * @returns {THREE.Group}
+   */
+  loadFBXModelFromBuffer(buffer) {
+    const loader = new FBXLoader();
+    const object = loader.parse(buffer, '');
+    this._setupFBXModel(object);
+    return object;
+  }
+
+  _setupFBXModel(object) {
+    this.removeFBXModel();
+
+    // Replace all materials with solid gray (no textures)
+    const grayMaterial = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      metalness: 0.1,
+      roughness: 0.8,
+    });
+    object.traverse((child) => {
+      if (child.isMesh) {
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+          } else {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
+        }
+        child.material = grayMaterial;
+        child.userData.isFBXModelMesh = true;
+      }
+    });
+
+    object.userData.isFBXModel = true;
+    object.rotation.order = 'ZXY';
+    this.fbxModel = object;
+    this.scene.add(object);
+  }
+
+  /**
+   * Remove the loaded FBX model from the scene
+   */
+  removeFBXModel() {
+    if (!this.fbxModel) return;
+    if (this.modelSelected) {
+      this.transformControls.detach();
+      this.modelSelected = false;
+    }
+    this.scene.remove(this.fbxModel);
+    this.fbxModel.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    this.fbxModel = null;
+    if (this.onModelSelect) this.onModelSelect(false);
+  }
+
+  /**
+   * Select the FBX model (attach gizmo, deselect displays)
+   */
+  selectModel() {
+    if (!this.fbxModel) return;
+    // Deselect any selected display
+    this.selectDisplay(-1);
+    this.modelSelected = true;
+    this.transformControls.attach(this.fbxModel);
+    if (this.onModelSelect) this.onModelSelect(true);
+  }
+
+  /**
+   * Deselect the FBX model
+   */
+  deselectModel() {
+    if (!this.modelSelected) return;
+    this.modelSelected = false;
+    this.transformControls.detach();
+    if (this.onModelSelect) this.onModelSelect(false);
+  }
+
+  /**
+   * Set FBX model transform from UI inputs
+   */
+  setModelTransform(x, y, z, yaw, pitch, roll, scale) {
+    if (!this.fbxModel) return;
+    this.fbxModel.position.set(x, y, z);
+    this.fbxModel.rotation.set(
+      pitch * Math.PI / 180,
+      -yaw * Math.PI / 180,
+      roll * Math.PI / 180
+    );
+    this.fbxModel.scale.setScalar(scale);
+  }
+
+  /**
+   * Get current FBX model transform
+   * @returns {{ x, y, z, yaw, pitch, roll, scale } | null}
+   */
+  getModelTransform() {
+    if (!this.fbxModel) return null;
+    const pos = this.fbxModel.position;
+    const euler = this.fbxModel.rotation;
+    return {
+      x: pos.x,
+      y: pos.y,
+      z: pos.z,
+      yaw: -THREE.MathUtils.radToDeg(euler.y),
+      pitch: THREE.MathUtils.radToDeg(euler.x),
+      roll: THREE.MathUtils.radToDeg(euler.z),
+      scale: this.fbxModel.scale.x
+    };
   }
 
   // --- Internal: Display mesh creation ---

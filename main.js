@@ -69,6 +69,17 @@ ipcMain.handle('save-file-dialog', async () => {
   return result;
 });
 
+ipcMain.handle('open-fbx-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'FBX Models', extensions: ['fbx'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  return result;
+});
+
 ipcMain.handle('read-file', async (event, filePath) => {
   try {
     const content = await fs.readFile(filePath, 'utf8');

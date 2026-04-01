@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFile: () => ipcRenderer.invoke('open-file-dialog'),
   saveFile: () => ipcRenderer.invoke('save-file-dialog'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
-  writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content)
+  writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+  openFbxFile: () => ipcRenderer.invoke('open-fbx-dialog')
 });

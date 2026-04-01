@@ -51,6 +51,20 @@ export async function initApp() {
   const saveConfigBtn = document.getElementById('saveConfigBtn');
   const saveAsConfigBtn = document.getElementById('saveAsConfigBtn');
 
+  // Model controls
+  const loadFbxBtn = document.getElementById('loadFbxBtn');
+  const removeFbxBtn = document.getElementById('removeFbxBtn');
+  const fbxFileNameLabel = document.getElementById('fbxFileName');
+  const modelPosXInput = document.getElementById('modelPosX');
+  const modelPosYInput = document.getElementById('modelPosY');
+  const modelPosZInput = document.getElementById('modelPosZ');
+  const modelRotYawInput = document.getElementById('modelRotYaw');
+  const modelRotPitchInput = document.getElementById('modelRotPitch');
+  const modelRotRollInput = document.getElementById('modelRotRoll');
+  const modelScaleInput = document.getElementById('modelScale');
+  const modelInputs = [modelPosXInput, modelPosYInput, modelPosZInput, modelRotYawInput, modelRotPitchInput, modelRotRollInput, modelScaleInput];
+  const fbxFileInput = document.getElementById('fbxFileInput'); // Web only
+
   // Initialize 3D scene
   const viewportContainer = document.getElementById('viewport3d');
   const scene = new SceneRenderer(viewportContainer);
@@ -96,6 +110,103 @@ export async function initApp() {
   scene.onDisplaySelect = (index) => {
     selectDisplay(index);
   };
+
+  // --- Model callbacks ---
+
+  scene.onModelChange = (changes) => {
+    modelPosXInput.value = parseFloat(changes.x.toFixed(4));
+    modelPosYInput.value = parseFloat(changes.y.toFixed(4));
+    modelPosZInput.value = parseFloat(changes.z.toFixed(4));
+    modelRotYawInput.value = parseFloat(changes.yaw.toFixed(2));
+    modelRotPitchInput.value = parseFloat(changes.pitch.toFixed(2));
+    modelRotRollInput.value = parseFloat(changes.roll.toFixed(2));
+    modelScaleInput.value = parseFloat(changes.scale.toFixed(4));
+  };
+
+  scene.onModelSelect = (selected) => {
+    if (selected) {
+      // Deselect display when model is selected
+      selectedDisplayIndex = -1;
+      updateDisplayList();
+      updateDisplayBtn.disabled = true;
+      deleteDisplayBtn.disabled = true;
+      projectionResults.innerHTML = '<div class="info-placeholder">FBX model selected</div>';
+    }
+  };
+
+  function setModelInputsEnabled(enabled) {
+    modelInputs.forEach(input => { if (input) input.disabled = !enabled; });
+    removeFbxBtn.disabled = !enabled;
+  }
+
+  function updateModelFromInputs() {
+    if (!scene.fbxModel) return;
+    scene.setModelTransform(
+      parseFloat(modelPosXInput.value) || 0,
+      parseFloat(modelPosYInput.value) || 0,
+      parseFloat(modelPosZInput.value) || 0,
+      parseFloat(modelRotYawInput.value) || 0,
+      parseFloat(modelRotPitchInput.value) || 0,
+      parseFloat(modelRotRollInput.value) || 0,
+      parseFloat(modelScaleInput.value) || 1
+    );
+  }
+
+  async function handleLoadFbx() {
+    try {
+      if (window.electronAPI) {
+        // Desktop: use IPC file dialog
+        const result = await window.electronAPI.openFbxFile();
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
+        const filePath = result.filePaths[0];
+        const fileName = filePath.split(/[/\\]/).pop();
+        fbxFileNameLabel.textContent = fileName;
+        await scene.loadFBXModel(filePath);
+      } else {
+        // Web: use file input
+        if (!fbxFileInput) return;
+        fbxFileInput.click();
+        await new Promise((resolve) => {
+          fbxFileInput.onchange = async () => {
+            const file = fbxFileInput.files[0];
+            if (!file) { resolve(); return; }
+            fbxFileNameLabel.textContent = file.name;
+            const buffer = await file.arrayBuffer();
+            scene.loadFBXModelFromBuffer(buffer);
+            resolve();
+          };
+        });
+      }
+      // Enable model controls and set default values
+      setModelInputsEnabled(true);
+      const t = scene.getModelTransform();
+      if (t) {
+        modelPosXInput.value = t.x;
+        modelPosYInput.value = t.y;
+        modelPosZInput.value = t.z;
+        modelRotYawInput.value = t.yaw;
+        modelRotPitchInput.value = t.pitch;
+        modelRotRollInput.value = t.roll;
+        modelScaleInput.value = t.scale;
+      }
+    } catch (error) {
+      console.error('Error loading FBX:', error);
+      fbxFileNameLabel.textContent = 'Error loading model';
+    }
+  }
+
+  function handleRemoveFbx() {
+    scene.removeFBXModel();
+    setModelInputsEnabled(false);
+    fbxFileNameLabel.textContent = 'No model loaded';
+    modelPosXInput.value = 0;
+    modelPosYInput.value = 0;
+    modelPosZInput.value = 0;
+    modelRotYawInput.value = 0;
+    modelRotPitchInput.value = 0;
+    modelRotRollInput.value = 0;
+    modelScaleInput.value = 1;
+  }
 
   // --- Display list ---
 
@@ -376,6 +487,13 @@ export async function initApp() {
   openConfigBtn.addEventListener('click', handleOpenConfigFile);
   saveConfigBtn.addEventListener('click', handleSaveConfig);
   saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
+
+  // Model controls
+  loadFbxBtn.addEventListener('click', handleLoadFbx);
+  removeFbxBtn.addEventListener('click', handleRemoveFbx);
+  modelInputs.forEach(input => {
+    if (input) input.addEventListener('input', updateModelFromInputs);
+  });
 
   // Initialize
   updateDisplayList();
