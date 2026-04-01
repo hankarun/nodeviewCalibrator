@@ -80,35 +80,62 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
 
   const formatMeters = value => `${value.toFixed(3)}m`;
   
-  // Use custom near plane if provided, otherwise use the nearest point distance
-  const effectiveNearPlane = nearPlane !== null ? nearPlane : Math.abs(nearestPoint.distance);
-  const nearPlaneMeters = formatMeters(effectiveNearPlane);
+  // Display-distance frustum: use leftM/rightM/topM/bottomM (projected to z=1) * nearest distance
+  const nearestDist = Math.abs(nearestPoint.distance);
+  const { leftM, rightM, topM, bottomM } = result.projection;
   
-  // If a custom near plane is provided, scale the edge distances
-  let scaledEdgeDistances = edgeDistances;
-  if (nearPlane !== null && Math.abs(nearestPoint.distance) > 0.0001) {
-    const scaleFactor = nearPlane / Math.abs(nearestPoint.distance);
-    scaledEdgeDistances = {
-      left: edgeDistances.left * scaleFactor,
-      right: edgeDistances.right * scaleFactor,
-      top: edgeDistances.top * scaleFactor,
-      bottom: edgeDistances.bottom * scaleFactor
-    };
-  }
+  const displayFrustum = {
+    left: leftM * nearestDist,
+    right: rightM * nearestDist,
+    top: topM * nearestDist,
+    bottom: bottomM * nearestDist
+  };
 
-  return `
+  // Build display-distance section (always shown)
+  let html = `
     <section class="projection-summary">
-      <header class="projection-header">Offcenter Projection (${modeLabel})</header>
+      <header class="projection-header">Offcenter Projection at Display (${modeLabel})</header>
       <table class="projection-table">
         <tbody>
-          <tr><th scope="row">Near Plane</th><td>${nearPlaneMeters}</td></tr>
-          <tr><th scope="row">Left</th><td>${formatMeters(scaledEdgeDistances.left)}</td></tr>
-          <tr><th scope="row">Right</th><td>${formatMeters(scaledEdgeDistances.right)}</td></tr>
-          <tr><th scope="row">Top</th><td>${formatMeters(scaledEdgeDistances.top)}</td></tr>
-          <tr><th scope="row">Bottom</th><td>${formatMeters(scaledEdgeDistances.bottom)}</td></tr>
+          <tr><th scope="row">Near Plane</th><td>${formatMeters(nearestDist)}</td></tr>
+          <tr><th scope="row">Left</th><td>${formatMeters(displayFrustum.left)}</td></tr>
+          <tr><th scope="row">Right</th><td>${formatMeters(displayFrustum.right)}</td></tr>
+          <tr><th scope="row">Top</th><td>${formatMeters(displayFrustum.top)}</td></tr>
+          <tr><th scope="row">Bottom</th><td>${formatMeters(displayFrustum.bottom)}</td></tr>
         </tbody>
       </table>
-    </section>
+    </section>`;
+
+  // Custom near plane section: convert to angles (atan), then recalculate at custom near (tan)
+  if (nearPlane !== null && nearestDist > 0.0001) {
+    const angleLeft = Math.atan(displayFrustum.left / nearestDist);
+    const angleRight = Math.atan(displayFrustum.right / nearestDist);
+    const angleTop = Math.atan(displayFrustum.top / nearestDist);
+    const angleBottom = Math.atan(displayFrustum.bottom / nearestDist);
+
+    const customFrustum = {
+      left: nearPlane * Math.tan(angleLeft),
+      right: nearPlane * Math.tan(angleRight),
+      top: nearPlane * Math.tan(angleTop),
+      bottom: nearPlane * Math.tan(angleBottom)
+    };
+
+    html += `
+    <section class="projection-summary">
+      <header class="projection-header">Offcenter Projection at Custom Near Plane</header>
+      <table class="projection-table">
+        <tbody>
+          <tr><th scope="row">Near Plane</th><td>${formatMeters(nearPlane)}</td></tr>
+          <tr><th scope="row">Left</th><td>${formatMeters(customFrustum.left)}</td></tr>
+          <tr><th scope="row">Right</th><td>${formatMeters(customFrustum.right)}</td></tr>
+          <tr><th scope="row">Top</th><td>${formatMeters(customFrustum.top)}</td></tr>
+          <tr><th scope="row">Bottom</th><td>${formatMeters(customFrustum.bottom)}</td></tr>
+        </tbody>
+      </table>
+    </section>`;
+  }
+
+  html += `
     <section class="corner-angles-summary">
       <header class="corner-angles-header">Corner Angles</header>
       <div class="corner-angles-grid">
@@ -143,6 +170,8 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
       </div>
     </section>
   `;
+
+  return html;
 }
 
 // Calculate signed offsets from the nearest point to each display edge (left, right, top, bottom)
@@ -293,28 +322,16 @@ export function formatEdgeDistances(edgeDistances) {
 // Get near plane frustum values for camera setup
 export function getNearPlaneFrustum(display, nearDistance = 0.1) {
   const result = calculateProjectionCorners(display);
-  const nearestPoint = result.offcenterProjection.nearestPoint;
-  const eyeToNearestDistance = nearestPoint.distance;
+  const { leftM, rightM, topM, bottomM } = result.projection;
   
-  // Scale factor to convert from eye-to-nearest to eye-to-near plane
-  const scaleFactor = nearDistance / eyeToNearestDistance;
-  
-  // Scale the corner vectors to near plane distance
-  const scaledCorners = result.cornersRelativeToNearest.map(corner => {
-    return {
-      x: corner.x * scaleFactor,
-      y: corner.y * scaleFactor,
-      z: corner.z * scaleFactor
-    };
-  });
-  
-  // Extract the frustum values (top, right, bottom, left)
+  // leftM/rightM/topM/bottomM are projections at z=1 (i.e. tan(angle))
+  // Multiply by nearDistance to get frustum extents at the desired near plane
   return {
     nearDistance,
-    top: scaledCorners[0].y,       // Top (y-coordinate of top-left corner)
-    left: scaledCorners[0].x,      // Left (x-coordinate of top-left corner)
-    right: scaledCorners[1].x,     // Right (x-coordinate of top-right corner)
-    bottom: scaledCorners[2].y     // Bottom (y-coordinate of bottom-left corner)
+    left: leftM * nearDistance,
+    right: rightM * nearDistance,
+    top: topM * nearDistance,
+    bottom: bottomM * nearDistance
   };
 }
 
