@@ -20,7 +20,6 @@ export async function initApp() {
   // Input elements
   const displayWidthInput = document.getElementById('displayWidth');
   const displayHeightInput = document.getElementById('displayHeight');
-  const displayDistanceInput = document.getElementById('displayDistance');
   const displayAngleInput = document.getElementById('displayAngle');
   const displayPitchInput = document.getElementById('displayPitch');
   const displayRollInput = document.getElementById('displayRoll');
@@ -135,7 +134,6 @@ export async function initApp() {
 
       displayWidthInput.value = display.width;
       displayHeightInput.value = display.height;
-      displayDistanceInput.value = display.distance;
       displayAngleInput.value = display.yaw;
       displayPitchInput.value = display.pitch;
       displayRollInput.value = display.roll;
@@ -188,7 +186,6 @@ export async function initApp() {
       name: displayNameInput.value,
       width: displayWidthInput.value,
       height: displayHeightInput.value,
-      distance: displayDistanceInput.value,
       yaw: displayAngleInput.value,
       pitch: displayPitchInput.value,
       roll: displayRollInput.value,
