@@ -19,6 +19,12 @@ const NEAREST_POINT_COLOR = 0xff0000;
 const NEAR_PLANE_COLOR = 0x0088ff;
 const NEAR_PLANE_CUSTOM_COLOR = 0xffff00;
 
+// Snap constants
+const SNAP_THRESHOLD = 0.1;         // meters — distance within which snap activates
+const SNAP_GUIDE_COLOR_IDLE = 0x888888;   // dim white for non-snapping guides
+const SNAP_GUIDE_COLOR_ACTIVE = 0xffff00; // yellow for guides within snap range
+const SNAP_GUIDE_ARM_LENGTH = 0.12; // half-arm length for crosshair guide lines
+
 export class SceneRenderer {
   constructor(container) {
     this.container = container;
@@ -39,6 +45,8 @@ export class SceneRenderer {
     this.animationId = null;
     this._isPointerDown = false;
     this._pointerDownPos = new THREE.Vector2();
+    this._shiftHeld = false;
+    this._snapGuideGroup = new THREE.Group();
 
     this._initScene();
     this._initCamera();
@@ -58,6 +66,7 @@ export class SceneRenderer {
   _initScene() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1a2e);
+    this.scene.add(this._snapGuideGroup);
   }
 
   _initCamera() {
@@ -172,6 +181,10 @@ export class SceneRenderer {
     // When gizmo dragging starts/stops, disable/enable orbit controls
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.orbitControls.enabled = !event.value;
+      if (!event.value) {
+        // Drag ended — clear snap guide lines
+        this._clearSnapGuides();
+      }
     });
 
     // When the gizmo moves/rotates a display or model, sync back to the data model
@@ -206,6 +219,12 @@ export class SceneRenderer {
       const yaw = -THREE.MathUtils.radToDeg(euler.y);
       const pitch = THREE.MathUtils.radToDeg(euler.x);
       const roll = THREE.MathUtils.radToDeg(euler.z);
+
+      // Apply snap when Shift is held during translation
+      if (this._shiftHeld && this.gizmoMode === 'translate') {
+        this._applySnapToGroup(this.selectedIndex);
+        this._updateSnapGuides(this.selectedIndex);
+      }
 
       if (this.onDisplayChange) {
         this.onDisplayChange(this.selectedIndex, {
@@ -269,12 +288,23 @@ export class SceneRenderer {
 
     // Keyboard: T for translate, R for rotate gizmo mode
     window.addEventListener('keydown', (e) => {
-      // Don't capture if typing in an input
+      // Track Shift state for snap (even when focused in inputs)
+      if (e.key === 'Shift') {
+        this._shiftHeld = true;
+      }
+      // Don't capture other keys if typing in an input
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 't' || e.key === 'T') {
         this.setGizmoMode('translate');
       } else if (e.key === 'r' || e.key === 'R') {
         this.setGizmoMode('rotate');
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') {
+        this._shiftHeld = false;
+        this._clearSnapGuides();
       }
     });
 
@@ -774,6 +804,8 @@ export class SceneRenderer {
   _createDisplayGroup(display) {
     const group = new THREE.Group();
     const { width, height, yaw, pitch, roll, x, y, z } = display;
+    group.userData.displayWidth = width;
+    group.userData.displayHeight = height;
     const showBorders = display.showBorders !== undefined ? display.showBorders : true;
     const borderWidthCm = display.borderWidthCm !== undefined ? display.borderWidthCm : 1.4;
     const borderColor = display.borderColor || 'black';
@@ -990,6 +1022,123 @@ export class SceneRenderer {
       border.material.dispose();
     }
     this.nearPlaneHelpers = [];
+  }
+
+  // --- Internal: Snap helpers ---
+
+  /**
+   * Returns 8 world-space snap points for the given display:
+   * 4 corners + 4 edge midpoints.
+   */
+  _calculateSnapPoints(displayIndex) {
+    const group = this.displayMeshes[displayIndex];
+    if (!group) return [];
+    const hw = (group.userData.displayWidth || 0) / 2;
+    const hh = (group.userData.displayHeight || 0) / 2;
+    const localPoints = [
+      new THREE.Vector3(-hw,  hh, 0), // top-left
+      new THREE.Vector3( hw,  hh, 0), // top-right
+      new THREE.Vector3( hw, -hh, 0), // bottom-right
+      new THREE.Vector3(-hw, -hh, 0), // bottom-left
+      new THREE.Vector3(  0,  hh, 0), // top-mid
+      new THREE.Vector3(  0, -hh, 0), // bottom-mid
+      new THREE.Vector3(-hw,   0, 0), // left-mid
+      new THREE.Vector3( hw,   0, 0), // right-mid
+    ];
+    group.updateMatrixWorld(true);
+    return localPoints.map(lp => group.localToWorld(lp));
+  }
+
+  /**
+   * If a snap point of the moving display is within SNAP_THRESHOLD of any
+   * snap point on another display, translate the moving group so the points coincide.
+   */
+  _applySnapToGroup(activeGroupIndex) {
+    const movingPoints = this._calculateSnapPoints(activeGroupIndex);
+    let bestDist = SNAP_THRESHOLD;
+    let bestOffset = null;
+    for (let i = 0; i < this.displayMeshes.length; i++) {
+      if (i === activeGroupIndex) continue;
+      const otherPoints = this._calculateSnapPoints(i);
+      for (const mp of movingPoints) {
+        for (const op of otherPoints) {
+          const dist = mp.distanceTo(op);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestOffset = new THREE.Vector3().subVectors(op, mp);
+          }
+        }
+      }
+    }
+    if (bestOffset) {
+      this.displayMeshes[activeGroupIndex].position.add(bestOffset);
+    }
+  }
+
+  /**
+   * Rebuild the dashed crosshair guide lines for all non-active displays.
+   * Active snap points (within SNAP_THRESHOLD of any moving point) are yellow;
+   * all others are dim grey.
+   */
+  _updateSnapGuides(activeGroupIndex) {
+    this._clearSnapGuides();
+    if (!this._shiftHeld || this.gizmoMode !== 'translate') return;
+    const movingPoints = this._calculateSnapPoints(activeGroupIndex);
+
+    for (let i = 0; i < this.displayMeshes.length; i++) {
+      if (i === activeGroupIndex) continue;
+      const otherGroup = this.displayMeshes[i];
+      otherGroup.updateMatrixWorld(true);
+
+      // World-space local axes of this display (for aligning crosshair arms)
+      const me = otherGroup.matrixWorld.elements;
+      const xAxis = new THREE.Vector3(me[0], me[1], me[2]).normalize();
+      const yAxis = new THREE.Vector3(me[4], me[5], me[6]).normalize();
+
+      const snapPoints = this._calculateSnapPoints(i);
+      for (const op of snapPoints) {
+        const isActive = movingPoints.some(mp => mp.distanceTo(op) < SNAP_THRESHOLD);
+        const color = isActive ? SNAP_GUIDE_COLOR_ACTIVE : SNAP_GUIDE_COLOR_IDLE;
+        const opacity = isActive ? 1.0 : 0.55;
+        const arm = SNAP_GUIDE_ARM_LENGTH;
+
+        const dashMat = new THREE.LineDashedMaterial({
+          color,
+          dashSize: 0.03,
+          gapSize: 0.02,
+          transparent: true,
+          opacity,
+        });
+
+        // Horizontal arm (along display local X)
+        const xGeo = new THREE.BufferGeometry().setFromPoints([
+          op.clone().addScaledVector(xAxis, -arm),
+          op.clone().addScaledVector(xAxis,  arm),
+        ]);
+        const xLine = new THREE.Line(xGeo, dashMat);
+        xLine.computeLineDistances();
+        this._snapGuideGroup.add(xLine);
+
+        // Vertical arm (along display local Y)
+        const yGeo = new THREE.BufferGeometry().setFromPoints([
+          op.clone().addScaledVector(yAxis, -arm),
+          op.clone().addScaledVector(yAxis,  arm),
+        ]);
+        const yLine = new THREE.Line(yGeo, dashMat.clone());
+        yLine.computeLineDistances();
+        this._snapGuideGroup.add(yLine);
+      }
+    }
+  }
+
+  /** Remove all snap guide lines from the scene and dispose their resources. */
+  _clearSnapGuides() {
+    const children = [...this._snapGuideGroup.children];
+    for (const child of children) {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+      this._snapGuideGroup.remove(child);
+    }
   }
 
   // --- Animation loop ---
