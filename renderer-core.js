@@ -37,6 +37,7 @@ export async function initApp() {
 
   // Per-display near plane input
   const nearPlaneInput = document.getElementById('nearPlane');
+  const showNearPlaneInput = document.getElementById('showNearPlane');
 
   // Viewport control buttons
   const orbitModeBtn = document.getElementById('orbitModeBtn');
@@ -257,6 +258,9 @@ export async function initApp() {
       if (nearPlaneInput) {
         nearPlaneInput.value = display.nearPlane != null ? display.nearPlane : '';
       }
+      if (showNearPlaneInput) {
+        showNearPlaneInput.checked = !!display.showNearPlane;
+      }
 
       updateDisplayBtn.disabled = false;
       deleteDisplayBtn.disabled = false;
@@ -268,6 +272,7 @@ export async function initApp() {
       updateDisplayBtn.disabled = true;
       deleteDisplayBtn.disabled = true;
       scene.selectDisplay(-1);
+      updateNearPlaneVisualization();
     }
   }
 
@@ -281,13 +286,7 @@ export async function initApp() {
   }
 
   function updateNearPlaneVisualization() {
-    if (selectedDisplayIndex >= 0 && selectedDisplayIndex < displays.length) {
-      const display = displays[selectedDisplayIndex];
-      const nearPlane = display.nearPlane != null ? display.nearPlane : null;
-      scene.updateNearPlane(display, nearPlane);
-    } else {
-      scene.updateNearPlane(null, null);
-    }
+    scene.updateAllNearPlanes(displays, selectedDisplayIndex);
   }
 
   // --- Display CRUD ---
@@ -303,7 +302,8 @@ export async function initApp() {
       x: displayOffsetXInput.value,
       y: displayOffsetYInput.value,
       z: displayOffsetZInput.value,
-      nearPlane: nearPlaneInput && nearPlaneInput.value !== '' ? nearPlaneInput.value : null
+      nearPlane: nearPlaneInput && nearPlaneInput.value !== '' ? nearPlaneInput.value : null,
+      showNearPlane: showNearPlaneInput ? showNearPlaneInput.checked : false
     };
     return createDisplayFromInputs(inputs);
   }

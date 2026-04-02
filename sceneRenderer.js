@@ -17,6 +17,7 @@ const EYE_COLOR = 0xff0000;
 const SIGHT_LINE_COLOR = 0xff8800;
 const NEAREST_POINT_COLOR = 0xff0000;
 const NEAR_PLANE_COLOR = 0x0088ff;
+const NEAR_PLANE_CUSTOM_COLOR = 0xffff00;
 
 export class SceneRenderer {
   constructor(container) {
@@ -24,7 +25,7 @@ export class SceneRenderer {
     this.displayMeshes = [];       // Array of THREE.Group, one per display
     this.sightLines = [];          // Sight line helpers for selected display
     this.nearestPointHelper = null; // Nearest point visualization
-    this.nearPlaneHelper = null;    // Near plane visualization
+    this.nearPlaneHelpers = [];    // Near plane visualizations (one per displayed near plane)
     this.selectedIndex = -1;
     this.cameraMode = 'orbit';     // 'orbit' or 'firstperson'
     this.gizmoMode = 'translate';  // 'translate' or 'rotate'
@@ -397,7 +398,7 @@ export class SceneRenderer {
     this.selectedIndex = -1;
     this._clearSightLines();
     this._clearNearestPoint();
-    this._clearNearPlane();
+    this._clearNearPlanes();
   }
 
   /**
@@ -433,52 +434,93 @@ export class SceneRenderer {
       this.transformControls.detach();
       this._clearSightLines();
       this._clearNearestPoint();
-      this._clearNearPlane();
     }
   }
 
   /**
-   * Update near plane visualization for selected display
-   * @param {Object} display - Display data
-   * @param {number} nearPlane - Near plane distance (null to hide)
+   * Update near plane visualizations for all displays.
+   * Shows the near plane for the selected display (if it has a custom nearPlane),
+   * plus any display with showNearPlane: true.
+   * @param {Object[]} displays - All display data objects
+   * @param {number} selectedIndex - Currently selected display index (-1 for none)
    */
-  updateNearPlane(display, nearPlane) {
-    this._clearNearPlane();
-    if (!display || nearPlane == null || !display.nearestPoint) return;
+  updateAllNearPlanes(displays, selectedIndex) {
+    this._clearNearPlanes();
+    if (!displays) return;
+    displays.forEach((display, i) => {
+      if (display.nearPlane == null) return;
+      const isSelected = i === selectedIndex;
+      if (!isSelected && !display.showNearPlane) return;
+      this._drawNearPlaneForDisplay(display, true);
+    });
+  }
 
+  /**
+   * Draw near plane quad for a single display and add to nearPlaneHelpers.
+   */
+  _drawNearPlaneForDisplay(display, isCustom) {
+    if (!display || !display.nearestPoint) return;
     const np = display.nearestPoint;
     const nearestDist = np.distance;
     if (nearestDist <= 0) return;
 
+    const color = isCustom ? NEAR_PLANE_CUSTOM_COLOR : NEAR_PLANE_COLOR;
+    const nearPlane = display.nearPlane;
     const scale = nearPlane / nearestDist;
-    const nearPlanePos = new THREE.Vector3(
-      np.normal.x * nearPlane,
-      np.normal.y * nearPlane,
-      np.normal.z * nearPlane
-    );
 
-    // Blue sphere at near plane point
-    const geo = new THREE.SphereGeometry(0.015, 12, 12);
-    const mat = new THREE.MeshBasicMaterial({ color: NEAR_PLANE_COLOR });
-    const sphere = new THREE.Mesh(geo, mat);
-    sphere.position.copy(nearPlanePos);
-    this.scene.add(sphere);
-
-    // Dashed line from eye to near plane point
-    const lineGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      nearPlanePos
-    ]);
-    const lineMat = new THREE.LineDashedMaterial({
-      color: NEAR_PLANE_COLOR,
-      dashSize: 0.03,
-      gapSize: 0.02
+    // Compute the 4 near-plane corners by scaling display corners from the eye (origin)
+    const { width, height, yaw, pitch, roll, x, y, z } = display;
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const yawRad = yaw * Math.PI / 180;
+    const pitchRad = pitch * Math.PI / 180;
+    const rollRad = roll * Math.PI / 180;
+    const localCorners = [
+      { x: -halfW, y:  halfH, z: 0 },
+      { x:  halfW, y:  halfH, z: 0 },
+      { x:  halfW, y: -halfH, z: 0 },
+      { x: -halfW, y: -halfH, z: 0 }
+    ];
+    const corners = localCorners.map(c => {
+      const r = rotateVector(c, yawRad, pitchRad, rollRad);
+      return new THREE.Vector3(
+        (r.x + x) * scale,
+        (r.y + y) * scale,
+        (r.z + z) * scale
+      );
     });
-    const line = new THREE.Line(lineGeo, lineMat);
-    line.computeLineDistances();
-    this.scene.add(line);
 
-    this.nearPlaneHelper = { sphere, line };
+    // Translucent quad (two triangles: 0-1-2, 0-2-3)
+    const positions = new Float32Array([
+      corners[0].x, corners[0].y, corners[0].z,
+      corners[1].x, corners[1].y, corners[1].z,
+      corners[2].x, corners[2].y, corners[2].z,
+      corners[0].x, corners[0].y, corners[0].z,
+      corners[2].x, corners[2].y, corners[2].z,
+      corners[3].x, corners[3].y, corners[3].z,
+    ]);
+    const quadGeo = new THREE.BufferGeometry();
+    quadGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    quadGeo.computeVertexNormals();
+    const quadMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const quad = new THREE.Mesh(quadGeo, quadMat);
+    this.scene.add(quad);
+
+    // Border outline
+    const borderGeo = new THREE.BufferGeometry().setFromPoints([
+      corners[0], corners[1], corners[2], corners[3], corners[0]
+    ]);
+    const borderMat = new THREE.LineBasicMaterial({ color });
+    const border = new THREE.Line(borderGeo, borderMat);
+    this.scene.add(border);
+
+    this.nearPlaneHelpers.push({ quad, border });
   }
 
   /**
@@ -909,16 +951,16 @@ export class SceneRenderer {
     this.nearestPointHelper = null;
   }
 
-  _clearNearPlane() {
-    if (!this.nearPlaneHelper) return;
-    const { sphere, line } = this.nearPlaneHelper;
-    this.scene.remove(sphere);
-    this.scene.remove(line);
-    sphere.geometry.dispose();
-    sphere.material.dispose();
-    line.geometry.dispose();
-    line.material.dispose();
-    this.nearPlaneHelper = null;
+  _clearNearPlanes() {
+    for (const { quad, border } of this.nearPlaneHelpers) {
+      this.scene.remove(quad);
+      this.scene.remove(border);
+      quad.geometry.dispose();
+      quad.material.dispose();
+      border.geometry.dispose();
+      border.material.dispose();
+    }
+    this.nearPlaneHelpers = [];
   }
 
   // --- Animation loop ---

@@ -34,6 +34,7 @@ export function createDisplayFromInputs(inputs) {
   if (inputs.nearPlane !== undefined && inputs.nearPlane !== null && inputs.nearPlane !== '') {
     result.nearPlane = parseFloat(inputs.nearPlane);
   }
+  result.showNearPlane = inputs.showNearPlane === true || inputs.showNearPlane === 'true';
   return result;
 }
 
