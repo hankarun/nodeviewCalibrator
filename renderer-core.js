@@ -81,6 +81,7 @@ export async function initApp() {
   // Store displays
   const displays = [];
   let selectedDisplayIndex = -1;
+  let selectedDisplayIndices = [];  // All currently selected display indices
 
   // --- Scene callbacks ---
 
@@ -95,20 +96,28 @@ export async function initApp() {
     display.pitch = parseFloat(changes.pitch.toFixed(2));
     display.roll = parseFloat(changes.roll.toFixed(2));
 
-    displayOffsetXInput.value = display.x;
-    displayOffsetYInput.value = display.y;
-    displayOffsetZInput.value = display.z;
-    displayAngleInput.value = display.yaw;
-    displayPitchInput.value = display.pitch;
-    displayRollInput.value = display.roll;
-
-    showDisplayCalculations(display);
+    // Only update UI inputs for the primary (last-clicked) display
+    if (index === selectedDisplayIndex) {
+      displayOffsetXInput.value = display.x;
+      displayOffsetYInput.value = display.y;
+      displayOffsetZInput.value = display.z;
+      if (selectedDisplayIndices.length <= 1) {
+        displayAngleInput.value = display.yaw;
+        displayPitchInput.value = display.pitch;
+        displayRollInput.value = display.roll;
+        showDisplayCalculations(display);
+      }
+    }
     updateDisplayList();
     fileInterface.markUnsaved();
   };
 
   scene.onDisplaySelect = (index) => {
     selectDisplay(index);
+  };
+
+  scene.onMultiSelect = (indices) => {
+    selectMultipleDisplays(indices);
   };
 
   // --- Model callbacks ---
@@ -127,7 +136,9 @@ export async function initApp() {
     if (idOrFalse !== false) {
       // Deselect display when a model is selected
       selectedDisplayIndex = -1;
+      selectedDisplayIndices = [];
       updateDisplayList();
+      setDisplayPanelMode('single');
       updateDisplayBtn.disabled = true;
       deleteDisplayBtn.disabled = true;
       projectionResults.innerHTML = '<div class="info-placeholder">FBX model selected</div>';
@@ -259,6 +270,82 @@ export async function initApp() {
 
   // --- Display list ---
 
+  // Build list of input-row elements hidden in multi-select mode
+  const singleSelectOnlyRows = [
+    presetSizeSelect ? presetSizeSelect.closest('.input-row') : null,
+    displayNameInput ? displayNameInput.closest('.input-row') : null,
+    displayWidthInput ? displayWidthInput.closest('.input-row') : null,
+    displayHeightInput ? displayHeightInput.closest('.input-row') : null,
+    displayAngleInput ? displayAngleInput.closest('.input-row') : null,
+    displayPitchInput ? displayPitchInput.closest('.input-row') : null,
+    displayRollInput ? displayRollInput.closest('.input-row') : null,
+    nearPlaneInput ? nearPlaneInput.closest('.input-row') : null,
+    showNearPlaneInput ? showNearPlaneInput.closest('.input-row') : null,
+    stableEdgeCalculationInput ? stableEdgeCalculationInput.closest('.input-row') : null,
+  ].filter(Boolean);
+
+  // Inline info element shown in multi-select mode
+  const multiSelectInfo = document.createElement('div');
+  multiSelectInfo.className = 'multi-select-info';
+  multiSelectInfo.style.display = 'none';
+  const posXRow = displayOffsetXInput ? displayOffsetXInput.closest('.input-row') : null;
+  if (posXRow) posXRow.parentNode.insertBefore(multiSelectInfo, posXRow);
+
+  /**
+   * Switch the display settings panel between 'single' and 'multi' modes.
+   * In multi mode only the X/Y/Z position fields are visible (read-only).
+   */
+  function setDisplayPanelMode(mode, count) {
+    if (mode === 'multi') {
+      singleSelectOnlyRows.forEach(row => { row.style.display = 'none'; });
+      multiSelectInfo.style.display = '';
+      multiSelectInfo.textContent = `${count} displays selected`;
+      displayOffsetXInput.readOnly = true;
+      displayOffsetYInput.readOnly = true;
+      displayOffsetZInput.readOnly = true;
+      updateDisplayBtn.disabled = true;
+      deleteDisplayBtn.disabled = false;
+      deleteDisplayBtn.textContent = 'Delete Selected';
+    } else {
+      singleSelectOnlyRows.forEach(row => { row.style.display = ''; });
+      multiSelectInfo.style.display = 'none';
+      displayOffsetXInput.readOnly = false;
+      displayOffsetYInput.readOnly = false;
+      displayOffsetZInput.readOnly = false;
+      deleteDisplayBtn.textContent = 'Delete Display';
+    }
+  }
+
+  /**
+   * Handle Ctrl+click multi-selection from the viewport.
+   * Switches the UI to position-only mode and attaches a shared gizmo.
+   */
+  function selectMultipleDisplays(indices) {
+    if (indices.length === 0) {
+      selectDisplay(-1);
+      return;
+    }
+    if (indices.length === 1) {
+      selectDisplay(indices[0]);
+      return;
+    }
+
+    selectedDisplayIndices = [...indices];
+    selectedDisplayIndex = indices[indices.length - 1];
+    updateDisplayList();
+
+    const primaryDisplay = displays[selectedDisplayIndex];
+    if (primaryDisplay) {
+      displayOffsetXInput.value = primaryDisplay.x;
+      displayOffsetYInput.value = primaryDisplay.y;
+      displayOffsetZInput.value = primaryDisplay.z;
+    }
+    setDisplayPanelMode('multi', indices.length);
+    projectionResults.innerHTML = `<div class="info-placeholder">${indices.length} displays selected — use gizmo to move</div>`;
+    scene.selectMultipleDisplays(indices, indices.map(i => displays[i]));
+    updateNearPlaneVisualization();
+  }
+
   function updateDisplayList() {
     displayListContainer.innerHTML = '';
     if (displays.length === 0) {
@@ -270,7 +357,7 @@ export async function initApp() {
     displays.forEach((display, index) => {
       const displayItem = document.createElement('div');
       displayItem.classList.add('display-item');
-      if (index === selectedDisplayIndex) {
+      if (selectedDisplayIndices.includes(index)) {
         displayItem.classList.add('selected');
       }
       const displayLabel = display.name ? `Display ${index + 1} (${display.name})` : `Display ${index + 1}`;
@@ -287,6 +374,8 @@ export async function initApp() {
 
   function selectDisplay(index) {
     selectedDisplayIndex = index;
+    selectedDisplayIndices = index >= 0 ? [index] : [];
+    setDisplayPanelMode('single');
     updateDisplayList();
 
     if (index >= 0 && index < displays.length) {
@@ -373,7 +462,9 @@ export async function initApp() {
     }
     displays.length = 0;
     selectedDisplayIndex = -1;
+    selectedDisplayIndices = [];
     fileInterface.createNew();
+    setDisplayPanelMode('single');
     updateDisplayList();
     projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
   }
@@ -386,6 +477,7 @@ export async function initApp() {
       const result = await fileInterface.openFile();
       if (result.canceled) return;
       displays.length = 0;
+      selectedDisplayIndices = [];
       displays.push(...result.config.displays);
       updateDisplayList();
       rebuildAllDisplayMeshes();
@@ -393,6 +485,7 @@ export async function initApp() {
         selectDisplay(0);
       } else {
         selectedDisplayIndex = -1;
+        setDisplayPanelMode('single');
         updateDisplayBtn.disabled = true;
         projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
       }
@@ -418,25 +511,34 @@ export async function initApp() {
   }
 
   function deleteDisplay() {
-    if (selectedDisplayIndex < 0) return;
-    if (confirm(`Are you sure you want to delete Display ${selectedDisplayIndex + 1}?`)) {
-      scene.removeDisplay(selectedDisplayIndex);
-      displays.splice(selectedDisplayIndex, 1);
+    const toDelete = selectedDisplayIndices.length > 1
+      ? [...selectedDisplayIndices]
+      : (selectedDisplayIndex >= 0 ? [selectedDisplayIndex] : []);
+    if (toDelete.length === 0) return;
 
-      if (displays.length === 0) {
-        selectedDisplayIndex = -1;
-      } else if (selectedDisplayIndex >= displays.length) {
-        selectedDisplayIndex = displays.length - 1;
-      }
+    const msg = toDelete.length > 1
+      ? `Delete ${toDelete.length} selected displays?`
+      : `Are you sure you want to delete Display ${toDelete[0] + 1}?`;
+    if (!confirm(msg)) return;
 
+    // Remove from highest index to lowest to avoid index-shifting issues
+    toDelete.sort((a, b) => b - a).forEach(index => {
+      scene.removeDisplay(index);
+      displays.splice(index, 1);
+    });
+
+    selectedDisplayIndex = -1;
+    selectedDisplayIndices = [];
+
+    if (displays.length === 0) {
       updateDisplayList();
-      if (selectedDisplayIndex >= 0) {
-        selectDisplay(selectedDisplayIndex);
-      } else {
-        updateDisplayBtn.disabled = true;
-        deleteDisplayBtn.disabled = true;
-        projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
-      }
+      setDisplayPanelMode('single');
+      updateDisplayBtn.disabled = true;
+      deleteDisplayBtn.disabled = true;
+      projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
+    } else {
+      selectDisplay(Math.min(toDelete[toDelete.length - 1], displays.length - 1));
+      updateDisplayList();
     }
   }
 

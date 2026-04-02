@@ -33,10 +33,14 @@ export class SceneRenderer {
     this.nearestPointHelper = null; // Nearest point visualization
     this.nearPlaneHelpers = [];    // Near plane visualizations (one per displayed near plane)
     this.selectedIndex = -1;
+    this.selectedIndices = [];         // Array of selected display indices (multi-select)
+    this._pivotObject = new THREE.Object3D(); // Pivot object for multi-select gizmo
+    this._multiOffsets = {};           // Map of display index → Vector3 offset from pivot
     this.cameraMode = 'orbit';     // 'orbit' or 'firstperson'
     this.gizmoMode = 'translate';  // 'translate' or 'rotate'
     this.onDisplayChange = null;   // Callback: (index, {x, y, z, yaw, pitch, roll}) => void
     this.onDisplaySelect = null;   // Callback: (index) => void
+    this.onMultiSelect = null;     // Callback: (indices: number[]) => void
     this.onModelChange = null;     // Callback: ({x, y, z, yaw, pitch, roll, scale}) => void
     this.onModelSelect = null;     // Callback: (id: number | false) => void
     this.fbxModels = [];           // Array of {id, name, model: THREE.Group, visible: bool}
@@ -173,6 +177,7 @@ export class SceneRenderer {
   }
 
   _initGizmo() {
+    this.scene.add(this._pivotObject);  // Invisible pivot for multi-select gizmo
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.setMode('translate');
     this.transformControls.setSize(0.6);
@@ -204,6 +209,26 @@ export class SceneRenderer {
         return;
       }
 
+      // Multi-select: sync all selected display meshes from pivot position
+      if (this.selectedIndices.length > 1) {
+        const pivot = this._pivotObject.position;
+        this.selectedIndices.forEach(i => {
+          const group = this.displayMeshes[i];
+          if (!group || !this._multiOffsets[i]) return;
+          group.position.copy(pivot).add(this._multiOffsets[i]);
+          if (this.onDisplayChange) {
+            this.onDisplayChange(i, {
+              x: group.position.x,
+              y: group.position.y,
+              z: group.position.z,
+              yaw: -THREE.MathUtils.radToDeg(group.rotation.y),
+              pitch: THREE.MathUtils.radToDeg(group.rotation.x),
+              roll: THREE.MathUtils.radToDeg(group.rotation.z),
+            });
+          }
+        });
+        return;
+      }
 
       // Handle display gizmo changes
       if (this.selectedIndex < 0) return;
@@ -353,7 +378,26 @@ export class SceneRenderer {
       } else {
         const idx = hit.userData.displayIndex;
         this.deselectModel();
-        if (this.onDisplaySelect) this.onDisplaySelect(idx);
+        if (event.ctrlKey || event.metaKey) {
+          // Ctrl/Cmd held: toggle this display in the multi-selection
+          const newSet = new Set(this.selectedIndices);
+          if (newSet.has(idx)) {
+            newSet.delete(idx);
+          } else {
+            newSet.add(idx);
+          }
+          const newIndices = [...newSet];
+          if (newIndices.length <= 1) {
+            // Collapsed to single select or empty
+            const single = newIndices.length === 1 ? newIndices[0] : -1;
+            if (this.onDisplaySelect) this.onDisplaySelect(single);
+          } else {
+            if (this.onMultiSelect) this.onMultiSelect(newIndices);
+          }
+        } else {
+          // Normal single click — clear multi-selection
+          if (this.onDisplaySelect) this.onDisplaySelect(idx);
+        }
       }
     } else {
       // Click on background → deselect all
@@ -406,14 +450,24 @@ export class SceneRenderer {
   removeDisplay(index) {
     if (index < 0 || index >= this.displayMeshes.length) return;
     const group = this.displayMeshes[index];
+
+    // Remove from multi-selection and shift higher indices down
+    this.selectedIndices = this.selectedIndices
+      .filter(i => i !== index)
+      .map(i => i > index ? i - 1 : i);
+
     if (this.selectedIndex === index) {
       this.transformControls.detach();
+      this.selectedIndex = -1;
+    } else if (this.selectedIndex > index) {
+      this.selectedIndex--;
     }
+
     this.scene.remove(group);
     this._disposeGroup(group);
     this.displayMeshes.splice(index, 1);
 
-    // Adjust selected index
+    // Clamp selected index
     if (this.selectedIndex >= this.displayMeshes.length) {
       this.selectedIndex = this.displayMeshes.length - 1;
     }
@@ -430,22 +484,19 @@ export class SceneRenderer {
     }
     this.displayMeshes = [];
     this.selectedIndex = -1;
+    this.selectedIndices = [];
+    this._multiOffsets = {};
     this._clearSightLines();
     this._clearNearestPoint();
     this._clearNearPlanes();
   }
 
   /**
-   * Select a display by index (-1 to deselect)
-   * @param {number} index
-   * @param {Object} [display] - Display data for visualization helpers
+   * Update display mesh material colors based on this.selectedIndices.
    */
-  selectDisplay(index, display) {
-    this.selectedIndex = index;
-
-    // Update materials for all displays
+  _updateSelectionColors() {
     this.displayMeshes.forEach((group, i) => {
-      const isSelected = i === index;
+      const isSelected = this.selectedIndices.includes(i);
       group.traverse((child) => {
         if (child.isMesh && child.userData.isDisplayPlane) {
           child.material.color.setHex(isSelected ? DISPLAY_SELECTED_COLOR : DISPLAY_COLOR);
@@ -456,6 +507,17 @@ export class SceneRenderer {
         }
       });
     });
+  }
+
+  /**
+   * Select a display by index (-1 to deselect). Clears any multi-selection.
+   * @param {number} index
+   * @param {Object} [display] - Display data for visualization helpers
+   */
+  selectDisplay(index, display) {
+    this.selectedIndex = index;
+    this.selectedIndices = index >= 0 ? [index] : [];
+    this._updateSelectionColors();
 
     // Attach or detach gizmo
     if (index >= 0 && index < this.displayMeshes.length) {
@@ -469,6 +531,53 @@ export class SceneRenderer {
       this._clearSightLines();
       this._clearNearestPoint();
     }
+  }
+
+  /**
+   * Select multiple displays. Places a shared pivot gizmo at their centroid.
+   * @param {number[]} indices - Array of display indices
+   * @param {Object[]} displays - Corresponding display data objects (same order as indices)
+   */
+  selectMultipleDisplays(indices, displays) {
+    this.selectedIndices = [...indices];
+    this.selectedIndex = indices.length > 0 ? indices[indices.length - 1] : -1;
+    this._updateSelectionColors();
+    this._clearSightLines();
+    this._clearNearestPoint();
+
+    if (indices.length === 0) {
+      this.transformControls.detach();
+      return;
+    }
+
+    if (indices.length === 1) {
+      // Delegate to single-select path
+      this.transformControls.attach(this.displayMeshes[indices[0]]);
+      const display = displays && displays[0];
+      if (display) {
+        this._updateSightLines(display);
+        this._updateNearestPoint(display);
+      }
+      return;
+    }
+
+    // Multi-select: place pivot at centroid and attach gizmo to it
+    this.transformControls.setMode('translate');
+    this.gizmoMode = 'translate';
+
+    const centroid = new THREE.Vector3();
+    indices.forEach(i => centroid.add(this.displayMeshes[i].position));
+    centroid.divideScalar(indices.length);
+
+    this._pivotObject.position.copy(centroid);
+    this._pivotObject.rotation.set(0, 0, 0);
+
+    this._multiOffsets = {};
+    indices.forEach(i => {
+      this._multiOffsets[i] = this.displayMeshes[i].position.clone().sub(centroid);
+    });
+
+    this.transformControls.attach(this._pivotObject);
   }
 
   /**
@@ -586,6 +695,8 @@ export class SceneRenderer {
    * Set gizmo mode: 'translate' or 'rotate'
    */
   setGizmoMode(mode) {
+    // Don't allow rotate when multiple displays are selected
+    if (this.selectedIndices.length > 1 && mode === 'rotate') return;
     this.gizmoMode = mode;
     this.transformControls.setMode(mode);
   }

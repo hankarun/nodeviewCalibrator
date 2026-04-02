@@ -321,6 +321,17 @@ h3 {
   padding: 20px 0;
 }
 
+.multi-select-info {
+  background: #2a3a5c;
+  border: 1px solid #4488ff;
+  border-radius: 4px;
+  color: #88bbff;
+  font-size: 0.85em;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
 
 
 .file-operations {
