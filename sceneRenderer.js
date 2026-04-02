@@ -591,10 +591,10 @@ export class SceneRenderer {
     this._clearNearPlanes();
     if (!displays) return;
     displays.forEach((display, i) => {
-      if (display.nearPlane == null) return;
       const isSelected = i === selectedIndex;
       if (!isSelected && !display.showNearPlane) return;
-      this._drawNearPlaneForDisplay(display, true);
+      const isCustom = display.nearPlane != null;
+      this._drawNearPlaneForDisplay(display, isCustom);
     });
   }
 
@@ -604,11 +604,11 @@ export class SceneRenderer {
   _drawNearPlaneForDisplay(display, isCustom) {
     if (!display || !display.nearestPoint) return;
     const np = display.nearestPoint;
-    const nearestDist = np.distance;
-    if (nearestDist <= 0) return;
+    const nearestDist = Math.abs(np.distance);
+    if (nearestDist < 0.0001) return;
 
     const color = isCustom ? NEAR_PLANE_CUSTOM_COLOR : NEAR_PLANE_COLOR;
-    const nearPlane = display.nearPlane;
+    const nearPlane = display.nearPlane != null ? display.nearPlane : nearestDist;
     const scale = nearPlane / nearestDist;
 
     // Compute the 4 near-plane corners by scaling display corners from the eye (origin)
