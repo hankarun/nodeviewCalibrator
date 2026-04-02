@@ -89,11 +89,63 @@ input {
   margin-top: 15px;
 }
 
-.model-filename {
-  font-size: 0.85em;
-  color: #888;
+.model-list {
   margin: 8px 0;
-  word-break: break-all;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.model-list-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid transparent;
+  cursor: default;
+}
+
+.model-list-row.selected {
+  border-color: #ff8800;
+  background: rgba(255,136,0,0.12);
+}
+
+.model-list-name {
+  flex: 1;
+  font-size: 0.85em;
+  color: #ccc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.model-list-name:hover {
+  color: #fff;
+}
+
+.model-visibility-btn,
+.model-remove-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 2px 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+  color: #aaa;
+  line-height: 1;
+  min-width: unset;
+}
+
+.model-visibility-btn:hover,
+.model-remove-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
 }
 
 .model-section h2 {

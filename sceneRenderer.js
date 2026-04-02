@@ -32,9 +32,10 @@ export class SceneRenderer {
     this.onDisplayChange = null;   // Callback: (index, {x, y, z, yaw, pitch, roll}) => void
     this.onDisplaySelect = null;   // Callback: (index) => void
     this.onModelChange = null;     // Callback: ({x, y, z, yaw, pitch, roll, scale}) => void
-    this.onModelSelect = null;     // Callback: (selected: boolean) => void
-    this.fbxModel = null;          // Currently loaded FBX model root
-    this.modelSelected = false;    // Whether the FBX model is currently selected
+    this.onModelSelect = null;     // Callback: (id: number | false) => void
+    this.fbxModels = [];           // Array of {id, name, model: THREE.Group, visible: bool}
+    this.selectedModelId = null;   // ID of the currently selected model (or null)
+    this._nextModelId = 0;
     this.animationId = null;
     this._isPointerDown = false;
     this._pointerDownPos = new THREE.Vector2();
@@ -176,10 +177,11 @@ export class SceneRenderer {
     // When the gizmo moves/rotates a display or model, sync back to the data model
     this.transformControls.addEventListener('change', () => {
       // Handle FBX model gizmo changes
-      if (this.modelSelected && this.fbxModel) {
-        const pos = this.fbxModel.position;
-        const euler = this.fbxModel.rotation;
-        const s = this.fbxModel.scale.x;
+      const activeEntry = this.fbxModels.find(m => m.id === this.selectedModelId);
+      if (activeEntry) {
+        const pos = activeEntry.model.position;
+        const euler = activeEntry.model.rotation;
+        const s = activeEntry.model.scale.x;
         const yaw = -THREE.MathUtils.radToDeg(euler.y);
         const pitch = THREE.MathUtils.radToDeg(euler.x);
         const roll = THREE.MathUtils.radToDeg(euler.z);
@@ -188,6 +190,7 @@ export class SceneRenderer {
         }
         return;
       }
+
 
       // Handle display gizmo changes
       if (this.selectedIndex < 0) return;
@@ -300,22 +303,23 @@ export class SceneRenderer {
 
     // Collect FBX model meshes for intersection
     const modelTargets = [];
-    if (this.fbxModel) {
-      this.fbxModel.traverse((child) => {
+    this.fbxModels.forEach((entry) => {
+      if (!entry.visible) return;
+      entry.model.traverse((child) => {
         if (child.isMesh) {
-          child.userData.isFBXModelMesh = true;
+          child.userData.fbxModelId = entry.id;
           modelTargets.push(child);
         }
       });
-    }
+    });
 
     const allTargets = [...targets, ...modelTargets];
     const intersects = this.raycaster.intersectObjects(allTargets);
     if (intersects.length > 0) {
       const hit = intersects[0].object;
-      if (hit.userData.isFBXModelMesh) {
-        // Clicked on FBX model
-        this.selectModel();
+      if (hit.userData.fbxModelId !== undefined) {
+        // Clicked on an FBX model
+        this.selectModel(hit.userData.fbxModelId);
       } else {
         const idx = hit.userData.displayIndex;
         this.deselectModel();
@@ -605,14 +609,15 @@ export class SceneRenderer {
   /**
    * Load an FBX model from a file path (Electron/local)
    * @param {string} filePath - Path to the .fbx file
-   * @returns {Promise<THREE.Group>}
+   * @param {string} [name] - Display name for the model
+   * @returns {Promise<number>} ID of the added model
    */
-  loadFBXModel(filePath) {
+  loadFBXModel(filePath, name) {
     return new Promise((resolve, reject) => {
       const loader = new FBXLoader();
       loader.load(filePath, (object) => {
-        this._setupFBXModel(object);
-        resolve(object);
+        const id = this._addFBXModel(object, name || filePath.split(/[/\\]/).pop());
+        resolve(id);
       }, undefined, (error) => {
         reject(error);
       });
@@ -622,17 +627,17 @@ export class SceneRenderer {
   /**
    * Load an FBX model from an ArrayBuffer (Web)
    * @param {ArrayBuffer} buffer - FBX file data
-   * @returns {THREE.Group}
+   * @param {string} [name] - Display name for the model
+   * @returns {number} ID of the added model
    */
-  loadFBXModelFromBuffer(buffer) {
+  loadFBXModelFromBuffer(buffer, name) {
     const loader = new FBXLoader();
     const object = loader.parse(buffer, '');
-    this._setupFBXModel(object);
-    return object;
+    return this._addFBXModel(object, name || 'Model');
   }
 
-  _setupFBXModel(object) {
-    this.removeFBXModel();
+  _addFBXModel(object, name) {
+    const id = this._nextModelId++;
 
     // Replace all materials with solid gray (no textures)
     const grayMaterial = new THREE.MeshStandardMaterial({
@@ -652,26 +657,31 @@ export class SceneRenderer {
         }
         child.material = grayMaterial;
         child.userData.isFBXModelMesh = true;
+        child.userData.fbxModelId = id;
       }
     });
 
     object.userData.isFBXModel = true;
     object.rotation.order = 'ZXY';
-    this.fbxModel = object;
+    this.fbxModels.push({ id, name, model: object, visible: true });
     this.scene.add(object);
+    return id;
   }
 
   /**
-   * Remove the loaded FBX model from the scene
+   * Remove an FBX model by ID
+   * @param {number} id - Model ID
    */
-  removeFBXModel() {
-    if (!this.fbxModel) return;
-    if (this.modelSelected) {
+  removeFBXModel(id) {
+    const index = this.fbxModels.findIndex(m => m.id === id);
+    if (index === -1) return;
+    const entry = this.fbxModels[index];
+    if (this.selectedModelId === id) {
       this.transformControls.detach();
-      this.modelSelected = false;
+      this.selectedModelId = null;
     }
-    this.scene.remove(this.fbxModel);
-    this.fbxModel.traverse((child) => {
+    this.scene.remove(entry.model);
+    entry.model.traverse((child) => {
       if (child.geometry) child.geometry.dispose();
       if (child.material) {
         if (Array.isArray(child.material)) {
@@ -681,54 +691,73 @@ export class SceneRenderer {
         }
       }
     });
-    this.fbxModel = null;
-    if (this.onModelSelect) this.onModelSelect(false);
+    this.fbxModels.splice(index, 1);
+    if (this.fbxModels.length === 0 && this.onModelSelect) {
+      this.onModelSelect(false);
+    }
+  }
+
+  /**
+   * Toggle visibility of an FBX model by ID
+   * @param {number} id - Model ID
+   */
+  toggleModelVisibility(id) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return;
+    entry.visible = !entry.visible;
+    entry.model.visible = entry.visible;
   }
 
   /**
    * Select the FBX model (attach gizmo, deselect displays)
+   * @param {number} id - Model ID
    */
-  selectModel() {
-    if (!this.fbxModel) return;
+  selectModel(id) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return;
     // Deselect any selected display
     this.selectDisplay(-1);
-    this.modelSelected = true;
-    this.transformControls.attach(this.fbxModel);
-    if (this.onModelSelect) this.onModelSelect(true);
+    this.selectedModelId = id;
+    this.transformControls.attach(entry.model);
+    if (this.onModelSelect) this.onModelSelect(id);
   }
 
   /**
    * Deselect the FBX model
    */
   deselectModel() {
-    if (!this.modelSelected) return;
-    this.modelSelected = false;
+    if (this.selectedModelId === null) return;
+    this.selectedModelId = null;
     this.transformControls.detach();
     if (this.onModelSelect) this.onModelSelect(false);
   }
 
   /**
    * Set FBX model transform from UI inputs
+   * @param {number} id - Model ID
    */
-  setModelTransform(x, y, z, yaw, pitch, roll, scale) {
-    if (!this.fbxModel) return;
-    this.fbxModel.position.set(x, y, z);
-    this.fbxModel.rotation.set(
+  setModelTransform(id, x, y, z, yaw, pitch, roll, scale) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return;
+    entry.model.position.set(x, y, z);
+    entry.model.rotation.set(
       pitch * Math.PI / 180,
       -yaw * Math.PI / 180,
       roll * Math.PI / 180
     );
-    this.fbxModel.scale.setScalar(scale);
+    entry.model.scale.setScalar(scale);
   }
 
   /**
    * Get current FBX model transform
+   * @param {number} id - Model ID
    * @returns {{ x, y, z, yaw, pitch, roll, scale } | null}
    */
-  getModelTransform() {
-    if (!this.fbxModel) return null;
-    const pos = this.fbxModel.position;
-    const euler = this.fbxModel.rotation;
+  getModelTransform(id) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return null;
+    const pos = entry.model.position;
+    const euler = entry.model.rotation;
     return {
       x: pos.x,
       y: pos.y,
@@ -736,7 +765,7 @@ export class SceneRenderer {
       yaw: -THREE.MathUtils.radToDeg(euler.y),
       pitch: THREE.MathUtils.radToDeg(euler.x),
       roll: THREE.MathUtils.radToDeg(euler.z),
-      scale: this.fbxModel.scale.x
+      scale: entry.model.scale.x
     };
   }
 
