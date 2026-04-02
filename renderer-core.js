@@ -33,7 +33,6 @@ export async function initApp() {
   const displayListContainer = document.getElementById('displayList');
   const projectionResults = document.getElementById('projectionResults');
   const presetSizeSelect = document.getElementById('presetSize');
-  const stableEdgeCalculationInput = document.getElementById('stableEdgeCalculation');
 
   // Per-display near plane input
   const nearPlaneInput = document.getElementById('nearPlane');
@@ -64,6 +63,16 @@ export async function initApp() {
   const modelScaleInput = document.getElementById('modelScale');
   const modelInputs = [modelPosXInput, modelPosYInput, modelPosZInput, modelRotYawInput, modelRotPitchInput, modelRotRollInput, modelScaleInput];
   const fbxFileInput = document.getElementById('fbxFileInput'); // Web only
+
+  // --- Tab switching ---
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.target).classList.remove('hidden');
+    });
+  });
 
   // Initialize 3D scene
   const viewportContainer = document.getElementById('viewport3d');
@@ -281,7 +290,6 @@ export async function initApp() {
     displayRollInput ? displayRollInput.closest('.input-row') : null,
     nearPlaneInput ? nearPlaneInput.closest('.input-row') : null,
     showNearPlaneInput ? showNearPlaneInput.closest('.input-row') : null,
-    stableEdgeCalculationInput ? stableEdgeCalculationInput.closest('.input-row') : null,
   ].filter(Boolean);
 
   // Inline info element shown in multi-select mode
@@ -417,9 +425,8 @@ export async function initApp() {
 
   function showDisplayCalculations(display) {
     const result = calculateDisplayProjection(display);
-    const useStableCalculation = stableEdgeCalculationInput.checked;
     const nearPlane = display.nearPlane != null ? display.nearPlane : null;
-    projectionResults.innerHTML = formatDisplayCalculations(result, display, useStableCalculation, nearPlane);
+    projectionResults.innerHTML = formatDisplayCalculations(result, display, true, nearPlane);
   }
 
   function updateNearPlaneVisualization() {
@@ -570,11 +577,16 @@ export async function initApp() {
     }
   });
 
-  stableEdgeCalculationInput.addEventListener('change', () => {
-    if (selectedDisplayIndex >= 0) {
-      showDisplayCalculations(displays[selectedDisplayIndex]);
-    }
-  });
+  // Show near plane checkbox
+  if (showNearPlaneInput) {
+    showNearPlaneInput.addEventListener('change', () => {
+      if (selectedDisplayIndex >= 0) {
+        displays[selectedDisplayIndex].showNearPlane = showNearPlaneInput.checked;
+        updateNearPlaneVisualization();
+        fileInterface.markUnsaved();
+      }
+    });
+  }
 
   // Per-display near plane input
   if (nearPlaneInput) {
