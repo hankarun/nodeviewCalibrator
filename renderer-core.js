@@ -61,7 +61,11 @@ export async function initApp() {
   const modelRotPitchInput = document.getElementById('modelRotPitch');
   const modelRotRollInput = document.getElementById('modelRotRoll');
   const modelScaleInput = document.getElementById('modelScale');
-  const modelInputs = [modelPosXInput, modelPosYInput, modelPosZInput, modelRotYawInput, modelRotPitchInput, modelRotRollInput, modelScaleInput];
+  const modelRenderModeSelect = document.getElementById('modelRenderMode');
+  const modelOpacityInput = document.getElementById('modelOpacity');
+  const modelOpacityValueSpan = document.getElementById('modelOpacityValue');
+  const modelOpacityRow = document.getElementById('modelOpacityRow');
+  const modelInputs = [modelPosXInput, modelPosYInput, modelPosZInput, modelRotYawInput, modelRotPitchInput, modelRotRollInput, modelScaleInput, modelRenderModeSelect, modelOpacityInput];
   const fbxFileInput = document.getElementById('fbxFileInput'); // Web only
 
   // --- Tab switching ---
@@ -162,6 +166,7 @@ export async function initApp() {
 
   function setModelInputsEnabled(enabled) {
     modelInputs.forEach(input => { if (input) input.disabled = !enabled; });
+    if (!enabled && modelOpacityRow) modelOpacityRow.style.display = 'none';
   }
 
   function populateModelTransformInputs(id) {
@@ -174,6 +179,32 @@ export async function initApp() {
     modelRotPitchInput.value = parseFloat(t.pitch.toFixed(2));
     modelRotRollInput.value = parseFloat(t.roll.toFixed(2));
     modelScaleInput.value = parseFloat(t.scale.toFixed(4));
+    const rm = scene.getModelRenderMode(id);
+    if (rm && modelRenderModeSelect) {
+      modelRenderModeSelect.value = rm.mode;
+      if (modelOpacityInput) modelOpacityInput.value = rm.opacity;
+      if (modelOpacityValueSpan) modelOpacityValueSpan.textContent = parseFloat(rm.opacity).toFixed(2);
+      if (modelOpacityRow) modelOpacityRow.style.display = rm.mode === 'transparent' ? '' : 'none';
+    }
+  }
+
+  if (modelRenderModeSelect) {
+    modelRenderModeSelect.addEventListener('change', () => {
+      if (scene.selectedModelId === null) return;
+      const mode = modelRenderModeSelect.value;
+      const opacity = modelOpacityInput ? parseFloat(modelOpacityInput.value) : 1;
+      if (modelOpacityRow) modelOpacityRow.style.display = mode === 'transparent' ? '' : 'none';
+      scene.setModelRenderMode(scene.selectedModelId, mode, opacity);
+    });
+  }
+
+  if (modelOpacityInput) {
+    modelOpacityInput.addEventListener('input', () => {
+      if (scene.selectedModelId === null) return;
+      const opacity = parseFloat(modelOpacityInput.value);
+      if (modelOpacityValueSpan) modelOpacityValueSpan.textContent = opacity.toFixed(2);
+      scene.setModelRenderMode(scene.selectedModelId, 'transparent', opacity);
+    });
   }
 
   function updateModelFromInputs() {

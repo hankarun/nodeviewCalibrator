@@ -804,7 +804,7 @@ export class SceneRenderer {
 
     object.userData.isFBXModel = true;
     object.rotation.order = 'ZXY';
-    this.fbxModels.push({ id, name, model: object, visible: true });
+    this.fbxModels.push({ id, name, model: object, visible: true, renderMode: 'solid', opacity: 1.0 });
     this.scene.add(object);
     return id;
   }
@@ -908,6 +908,51 @@ export class SceneRenderer {
       roll: THREE.MathUtils.radToDeg(euler.z),
       scale: entry.model.scale.x
     };
+  }
+
+  /**
+   * Set render mode of an FBX model
+   * @param {number} id - Model ID
+   * @param {'solid'|'wireframe'|'transparent'} mode
+   * @param {number} [opacity=1] - Opacity for transparent mode (0–1)
+   */
+  setModelRenderMode(id, mode, opacity = 1) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return;
+    entry.renderMode = mode;
+    entry.opacity = opacity;
+    entry.model.traverse((child) => {
+      if (!child.isMesh) return;
+      const mat = child.material;
+      if (mode === 'wireframe') {
+        mat.wireframe = true;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+      } else if (mode === 'transparent') {
+        mat.wireframe = false;
+        mat.transparent = true;
+        mat.opacity = opacity;
+        mat.depthWrite = false;
+      } else { // solid
+        mat.wireframe = false;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+      }
+      mat.needsUpdate = true;
+    });
+  }
+
+  /**
+   * Get render mode of an FBX model
+   * @param {number} id - Model ID
+   * @returns {{ mode: string, opacity: number } | null}
+   */
+  getModelRenderMode(id) {
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (!entry) return null;
+    return { mode: entry.renderMode, opacity: entry.opacity };
   }
 
   // --- Internal: Display mesh creation ---

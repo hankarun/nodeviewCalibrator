@@ -147,6 +147,18 @@
             <label for="modelScale">Scale:</label>
             <input type="number" id="modelScale" value="1" step="0.01" min="0.001" disabled>
           </div>
+          <div class="input-row">
+            <label for="modelRenderMode">Render Mode:</label>
+            <select id="modelRenderMode" disabled>
+              <option value="solid">Solid</option>
+              <option value="wireframe">Wireframe</option>
+              <option value="transparent">Transparent</option>
+            </select>
+            </div>
+          <div class="input-row" id="modelOpacityRow" style="display:none">
+            <label for="modelOpacity">Opacity: <span id="modelOpacityValue">1.00</span></label>
+            <input type="range" id="modelOpacity" min="0" max="1" step="0.01" value="1" disabled>
+          </div>
         </div>
         </div><!-- /.tab-container -->
       </div>
