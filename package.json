@@ -28,13 +28,20 @@
   "build": {
     "appId": "com.yourcompany.nodeviewcalibrator",
     "productName": "Node View Calibrator",
+    "asar": false,
+    "extraResources": [
+      {
+        "from": "node_modules/three/examples/jsm",
+        "to": "app/node_modules/three/examples/jsm"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
     "files": [
       "**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test}",
       "!**/node_modules/*.d.ts",
       "!**/node_modules/.bin",
       "!dist",
