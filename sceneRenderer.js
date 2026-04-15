@@ -777,7 +777,7 @@ export class SceneRenderer {
   }
 
   /**
-   * Load an FBX model from an ArrayBuffer (Web)
+   * Load an FBX model from an ArrayBuffer (Web or Electron)
    * @param {ArrayBuffer} buffer - FBX file data
    * @param {string} [name] - Display name for the model
    * @returns {number} ID of the added model
@@ -785,7 +785,24 @@ export class SceneRenderer {
   loadFBXModelFromBuffer(buffer, name) {
     const loader = new FBXLoader();
     const object = loader.parse(buffer, '');
-    return this._addFBXModel(object, name || 'Model');
+    const id = this._addFBXModel(object, name || 'Model');
+    const entry = this.fbxModels.find(m => m.id === id);
+    if (entry) entry.fbxBuffer = buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return id;
+  }
+
+  /**
+   * Get all FBX model data for bundle export
+   * @returns {Array} Array of model data including FBX buffer and transform state
+   */
+  getFBXModelsForExport() {
+    return this.fbxModels.map(entry => ({
+      name: entry.name,
+      visible: entry.visible,
+      fbxBuffer: entry.fbxBuffer || null,
+      transform: this.getModelTransform(entry.id),
+      renderMode: this.getModelRenderMode(entry.id)
+    }));
   }
 
   _addFBXModel(object, name) {

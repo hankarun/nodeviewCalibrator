@@ -50,6 +50,8 @@ export async function initApp() {
   const openConfigBtn = document.getElementById('openConfigBtn');
   const saveConfigBtn = document.getElementById('saveConfigBtn');
   const saveAsConfigBtn = document.getElementById('saveAsConfigBtn');
+  const openBundleBtn = document.getElementById('openBundleBtn');
+  const saveBundleBtn = document.getElementById('saveBundleBtn');
 
   // Model controls
   const loadFbxBtn = document.getElementById('loadFbxBtn');
@@ -287,12 +289,14 @@ export async function initApp() {
     try {
       let id;
       if (window.electronAPI) {
-        // Desktop: use IPC file dialog
+        // Desktop: read binary then parse (so buffer is stored for bundle export)
         const result = await window.electronAPI.openFbxFile();
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
         const filePath = result.filePaths[0];
         const fileName = filePath.split(/[/\\]/).pop();
-        id = await scene.loadFBXModel(filePath, fileName);
+        const uint8arr = await window.electronAPI.readFileBinary(filePath);
+        const fbxBuffer = uint8arr.buffer.slice(uint8arr.byteOffset, uint8arr.byteOffset + uint8arr.byteLength);
+        id = scene.loadFBXModelFromBuffer(fbxBuffer, fileName);
       } else {
         // Web: use file input
         if (!fbxFileInput) return;
@@ -555,6 +559,50 @@ export async function initApp() {
     }
   }
 
+  async function handleSaveBundle() {
+    try {
+      const models = scene.getFBXModelsForExport();
+      await fileInterface.saveBundle(displays, models);
+    } catch (error) {
+      console.error('Error saving bundle:', error);
+    }
+  }
+
+  async function handleOpenBundle() {
+    try {
+      const result = await fileInterface.openBundle();
+      if (result.canceled) return;
+
+      displays.length = 0;
+      selectedDisplayIndices = [];
+      [...scene.fbxModels].forEach(m => scene.removeFBXModel(m.id));
+
+      displays.push(...result.displays);
+      updateDisplayList();
+      rebuildAllDisplayMeshes();
+
+      for (const modelData of result.models) {
+        if (!modelData.fbxBuffer) continue;
+        const id = scene.loadFBXModelFromBuffer(modelData.fbxBuffer, modelData.name);
+        scene.setModelTransform(id, modelData.x, modelData.y, modelData.z, modelData.yaw, modelData.pitch, modelData.roll, modelData.scale);
+        scene.setModelRenderMode(id, modelData.renderMode, modelData.opacity);
+        if (!modelData.visible) scene.toggleModelVisibility(id);
+      }
+      renderModelList();
+
+      if (displays.length > 0) {
+        selectDisplay(0);
+      } else {
+        selectedDisplayIndex = -1;
+        setDisplayPanelMode('single');
+        updateDisplayBtn.disabled = true;
+        projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
+      }
+    } catch (error) {
+      console.error('Error opening bundle:', error);
+    }
+  }
+
   function deleteDisplay() {
     const toDelete = selectedDisplayIndices.length > 1
       ? [...selectedDisplayIndices]
@@ -687,6 +735,8 @@ export async function initApp() {
   openConfigBtn.addEventListener('click', handleOpenConfigFile);
   saveConfigBtn.addEventListener('click', handleSaveConfig);
   saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
+  if (openBundleBtn) openBundleBtn.addEventListener('click', handleOpenBundle);
+  if (saveBundleBtn) saveBundleBtn.addEventListener('click', handleSaveBundle);
 
   // Model controls
   loadFbxBtn.addEventListener('click', handleLoadFbx);

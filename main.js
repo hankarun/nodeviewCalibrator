@@ -97,3 +97,40 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     throw new Error(`Failed to write file: ${error.message}`);
   }
 });
+
+ipcMain.handle('read-file-binary', async (event, filePath) => {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    throw new Error(`Failed to read file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('write-file-binary', async (event, filePath, data) => {
+  try {
+    await fs.writeFile(filePath, Buffer.from(data));
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to write file: ${error.message}`);
+  }
+});
+
+ipcMain.handle('open-bundle-dialog', async () => {
+  return dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'NVC Bundle', extensions: ['nvcb'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+});
+
+ipcMain.handle('save-bundle-dialog', async () => {
+  return dialog.showSaveDialog(mainWindow, {
+    defaultPath: 'scene-bundle.nvcb',
+    filters: [
+      { name: 'NVC Bundle', extensions: ['nvcb'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+});
