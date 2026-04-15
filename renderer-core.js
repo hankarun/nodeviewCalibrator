@@ -129,6 +129,13 @@ export async function initApp() {
     selectDisplay(index);
   };
 
+  scene.onDragEnd = (index) => {
+    if (index >= 0 && displays[index]) {
+      scene.selectDisplay(index, displays[index]);
+    }
+    updateNearPlaneVisualization();
+  };
+
   scene.onMultiSelect = (indices) => {
     selectMultipleDisplays(indices);
   };

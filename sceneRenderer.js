@@ -42,6 +42,7 @@ export class SceneRenderer {
     this.onDisplaySelect = null;   // Callback: (index) => void
     this.onMultiSelect = null;     // Callback: (indices: number[]) => void
     this.onModelChange = null;     // Callback: ({x, y, z, yaw, pitch, roll, scale}) => void
+    this.onDragEnd = null;         // Callback: (index, indices) => void
     this.onModelSelect = null;     // Callback: (id: number | false) => void
     this.fbxModels = [];           // Array of {id, name, model: THREE.Group, visible: bool}
     this.selectedModelId = null;   // ID of the currently selected model (or null)
@@ -187,8 +188,14 @@ export class SceneRenderer {
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.orbitControls.enabled = !event.value;
       if (!event.value) {
-        // Drag ended — clear snap guide lines
+        // Drag ended — clear snap guide lines and let caller rebuild helpers
         this._clearSnapGuides();
+        if (this.onDragEnd) this.onDragEnd(this.selectedIndex, this.selectedIndices);
+      } else {
+        // Drag started — clear all helpers that don't follow the group so they don't ghost
+        this._clearSightLines();
+        this._clearNearestPoint();
+        this._clearNearPlanes();
       }
     });
 
@@ -335,6 +342,10 @@ export class SceneRenderer {
 
     // Resize
     window.addEventListener('resize', () => this.resize());
+
+    // Also observe container size changes (e.g. panel resizes without window resize)
+    this._resizeObserver = new ResizeObserver(() => this.resize());
+    this._resizeObserver.observe(this.container);
   }
 
   _handleClick(event) {
