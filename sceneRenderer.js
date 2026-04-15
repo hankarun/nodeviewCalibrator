@@ -1050,6 +1050,19 @@ export class SceneRenderer {
       group.add(label);
     }
 
+    // Normal arrow pointing in +Z (front face of the display)
+    const arrowLength = Math.min(width, height) * 0.3;
+    const arrowHelper = new THREE.ArrowHelper(
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(0, 0, 0),
+      arrowLength,
+      0x00ccff,
+      arrowLength * 0.3,
+      arrowLength * 0.15
+    );
+    arrowHelper.userData.isNormalArrow = true;
+    group.add(arrowHelper);
+
     // Apply rotation: the existing code applies roll→pitch→yaw to vertices.
     // Three.js Euler order 'ZXY' means: first roll(Z), then pitch(X), then yaw(Y)
     // Yaw is negated because Three.js Y rotation has opposite sign convention
