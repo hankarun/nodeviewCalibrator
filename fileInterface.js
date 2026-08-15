@@ -94,7 +94,8 @@ class FileInterface {
     return {
       version: '1.0',
       timestamp: new Date().toISOString(),
-      displays: []
+      displays: [],
+      eye: { x: 0, y: 0, z: 0 }
     };
   }
 
@@ -223,14 +224,16 @@ class FileInterface {
    * @param {Array} displays - Display configuration array
    * @param {Array} models - FBX model metadata from scene.getFBXModelsForExport()
    * @param {boolean} saveAs - Whether to force "Save As" dialog
+   * @param {{x:number,y:number,z:number}|null} eye - Eye (rig) position
    * @returns {Promise<Object>} Save result
    */
-  async saveFile(displays, models = [], saveAs = false) {
+  async saveFile(displays, models = [], saveAs = false, eye = null) {
     try {
       const configData = {
         version: '1.0',
         timestamp: new Date().toISOString(),
         displays: displays,
+        eye: eye || { x: 0, y: 0, z: 0 },
         models: (models || []).map(m => ({
           name: m.name,
           filePath: m.filePath || null,

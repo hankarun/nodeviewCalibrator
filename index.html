@@ -38,6 +38,7 @@
           <div class="tab-header">
             <button class="tab-btn active" data-target="tab-display-settings">Display Settings</button>
             <button class="tab-btn" data-target="tab-model">3D Model</button>
+            <button class="tab-btn" data-target="tab-eye">Eye</button>
           </div>
 
         <div class="input-group tab-panel" id="tab-display-settings">
@@ -153,6 +154,26 @@
           <div class="input-row" id="modelOpacityRow" style="display:none">
             <label for="modelOpacity">Opacity: <span id="modelOpacityValue">1.00</span></label>
             <input type="range" id="modelOpacity" min="0" max="1" step="0.01" value="1" disabled>
+          </div>
+        </div>
+
+        <div class="input-group tab-panel hidden" id="tab-eye">
+          <h2>Eye Position</h2>
+          <p class="tab-hint">Monitors are eye-centric — they move together with the eye. Drag the red eye in the viewport or edit the values below.</p>
+          <div class="input-row">
+            <label for="eyePosX">X position (m):</label>
+            <input type="number" id="eyePosX" value="0" step="0.01">
+          </div>
+          <div class="input-row">
+            <label for="eyePosY">Y position (m):</label>
+            <input type="number" id="eyePosY" value="0" step="0.01">
+          </div>
+          <div class="input-row">
+            <label for="eyePosZ">Z position (m):</label>
+            <input type="number" id="eyePosZ" value="0" step="0.01">
+          </div>
+          <div class="button-row">
+            <button id="resetEyeBtn">Reset Eye to Origin</button>
           </div>
         </div>
         </div><!-- /.tab-container -->

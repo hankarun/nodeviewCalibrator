@@ -68,6 +68,12 @@ export async function initApp() {
   const modelInputs = [modelPosXInput, modelPosYInput, modelPosZInput, modelRotYawInput, modelRotPitchInput, modelRotRollInput, modelScaleInput, modelRenderModeSelect, modelOpacityInput];
   const fbxFileInput = document.getElementById('fbxFileInput'); // Web only
 
+  // Eye controls
+  const eyePosXInput = document.getElementById('eyePosX');
+  const eyePosYInput = document.getElementById('eyePosY');
+  const eyePosZInput = document.getElementById('eyePosZ');
+  const resetEyeBtn = document.getElementById('resetEyeBtn');
+
   // --- Tab switching ---
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -75,6 +81,12 @@ export async function initApp() {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.target).classList.remove('hidden');
+      // Attach the eye gizmo while the Eye tab is open; detach it otherwise.
+      if (btn.dataset.target === 'tab-eye') {
+        scene.selectEye();
+      } else if (scene.eyeSelected) {
+        scene.deselectEye();
+      }
     });
   });
 
@@ -174,6 +186,50 @@ export async function initApp() {
   function setModelInputsEnabled(enabled) {
     modelInputs.forEach(input => { if (input) input.disabled = !enabled; });
     if (!enabled && modelOpacityRow) modelOpacityRow.style.display = 'none';
+  }
+
+  // --- Eye rig callbacks & controls ---
+
+  function updateEyeInputs(t) {
+    if (eyePosXInput) eyePosXInput.value = parseFloat(t.x.toFixed(4));
+    if (eyePosYInput) eyePosYInput.value = parseFloat(t.y.toFixed(4));
+    if (eyePosZInput) eyePosZInput.value = parseFloat(t.z.toFixed(4));
+  }
+
+  function activateEyeTab() {
+    const btn = document.querySelector('.tab-btn[data-target="tab-eye"]');
+    if (btn && !btn.classList.contains('active')) btn.click();
+  }
+
+  // Gizmo drag on the eye → reflect in the input fields
+  scene.onEyeChange = (changes) => {
+    updateEyeInputs(changes);
+    fileInterface.markUnsaved();
+  };
+
+  // Clicking the eye sphere in the viewport → open the Eye tab
+  scene.onEyeSelect = () => {
+    activateEyeTab();
+  };
+
+  function applyEyeFromInputs() {
+    const x = parseFloat(eyePosXInput.value) || 0;
+    const y = parseFloat(eyePosYInput.value) || 0;
+    const z = parseFloat(eyePosZInput.value) || 0;
+    scene.setEyeTransform(x, y, z);
+    fileInterface.markUnsaved();
+  }
+
+  [eyePosXInput, eyePosYInput, eyePosZInput].forEach(input => {
+    if (input) input.addEventListener('input', applyEyeFromInputs);
+  });
+
+  if (resetEyeBtn) {
+    resetEyeBtn.addEventListener('click', () => {
+      scene.setEyeTransform(0, 0, 0);
+      updateEyeInputs({ x: 0, y: 0, z: 0 });
+      fileInterface.markUnsaved();
+    });
   }
 
   function populateModelTransformInputs(id) {
@@ -512,6 +568,8 @@ export async function initApp() {
     selectedDisplayIndex = -1;
     selectedDisplayIndices = [];
     fileInterface.createNew();
+    scene.setEyeTransform(0, 0, 0);
+    updateEyeInputs({ x: 0, y: 0, z: 0 });
     setDisplayPanelMode('single');
     updateDisplayList();
     projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
@@ -566,6 +624,10 @@ export async function initApp() {
       displays.push(...result.config.displays);
       updateDisplayList();
       rebuildAllDisplayMeshes();
+      // Restore eye position (defaults to origin for older configs)
+      const eye = result.config.eye || { x: 0, y: 0, z: 0 };
+      scene.setEyeTransform(eye.x || 0, eye.y || 0, eye.z || 0);
+      updateEyeInputs({ x: eye.x || 0, y: eye.y || 0, z: eye.z || 0 });
       await reloadModelsFromConfig(result.config.models || []);
       if (displays.length > 0) {
         selectDisplay(0);
@@ -583,7 +645,7 @@ export async function initApp() {
   async function handleSaveConfig() {
     try {
       const models = scene.getFBXModelsForExport();
-      await fileInterface.saveFile(displays, models, false);
+      await fileInterface.saveFile(displays, models, false, scene.getEyeTransform());
     } catch (error) {
       console.error('Error saving file:', error);
     }
@@ -592,7 +654,7 @@ export async function initApp() {
   async function handleSaveConfigAs() {
     try {
       const models = scene.getFBXModelsForExport();
-      await fileInterface.saveFile(displays, models, true);
+      await fileInterface.saveFile(displays, models, true, scene.getEyeTransform());
     } catch (error) {
       console.error('Error saving file:', error);
     }

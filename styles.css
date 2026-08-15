@@ -97,6 +97,13 @@ p {
   display: none;
 }
 
+.tab-hint {
+  margin: 0 0 12px 0;
+  font-size: 0.85em;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+
 .display-list-panel h2 {
   margin-top: 0;
   margin-bottom: 10px;

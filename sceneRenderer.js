@@ -44,6 +44,9 @@ export class SceneRenderer {
     this.onModelChange = null;     // Callback: ({x, y, z, yaw, pitch, roll, scale}) => void
     this.onDragEnd = null;         // Callback: (index, indices) => void
     this.onModelSelect = null;     // Callback: (id: number | false) => void
+    this.onEyeChange = null;       // Callback: ({x, y, z}) => void  (eye rig moved via gizmo)
+    this.onEyeSelect = null;       // Callback: () => void  (eye picked in viewport)
+    this.eyeSelected = false;      // Whether the eye rig is the active gizmo target
     this.fbxModels = [];           // Array of {id, name, model: THREE.Group, visible: bool}
     this.selectedModelId = null;   // ID of the currently selected model (or null)
     this._nextModelId = 0;
@@ -54,6 +57,7 @@ export class SceneRenderer {
     this._snapGuideGroup = new THREE.Group();
 
     this._initScene();
+    this._initRig();
     this._initCamera();
     this._initRenderer();
     this._initControls();
@@ -71,7 +75,19 @@ export class SceneRenderer {
   _initScene() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1a2e);
-    this.scene.add(this._snapGuideGroup);
+  }
+
+  _initRig() {
+    // The rig holds everything that is eye-relative: the eye mesh, all display
+    // groups, sight lines, nearest-point and near-plane helpers, snap guides and
+    // the first-person camera. Moving the rig moves the eye and its monitors
+    // together through the fixed world (grid/axes/FBX models stay put).
+    // Because display coordinates remain rig-local (= eye-relative), all
+    // projection math continues to assume the eye sits at the origin.
+    this.rig = new THREE.Group();
+    this.rig.position.set(0, 0, 0);
+    this.scene.add(this.rig);
+    this.rig.add(this._snapGuideGroup);
   }
 
   _initCamera() {
@@ -80,10 +96,12 @@ export class SceneRenderer {
     this.camera.position.set(1.5, 1.5, -1.5);
     this.camera.lookAt(0, 0, 0.7);
 
-    // First-person camera stored separately
+    // First-person camera stored separately. Parented to the rig so it stays
+    // anchored at the eye position even after the eye is moved.
     this.fpCamera = new THREE.PerspectiveCamera(90, aspect, 0.01, 100);
     this.fpCamera.position.set(0, 0, 0);
     this.fpCamera.lookAt(0, 0, 1);
+    this.rig.add(this.fpCamera);
   }
 
   _initRenderer() {
@@ -153,7 +171,8 @@ export class SceneRenderer {
     const mat = new THREE.MeshBasicMaterial({ color: EYE_COLOR });
     this.eyeMesh = new THREE.Mesh(geo, mat);
     this.eyeMesh.position.set(0, 0, 0);
-    this.scene.add(this.eyeMesh);
+    this.eyeMesh.userData.isEye = true;
+    this.rig.add(this.eyeMesh);
 
     // Eye label
     this._addSpriteLabel('Eye', this.eyeMesh, new THREE.Vector3(0, 0.06, 0), 0xff4444);
@@ -178,7 +197,7 @@ export class SceneRenderer {
   }
 
   _initGizmo() {
-    this.scene.add(this._pivotObject);  // Invisible pivot for multi-select gizmo
+    this.rig.add(this._pivotObject);  // Invisible pivot for multi-select gizmo
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.setMode('translate');
     this.transformControls.setSize(0.6);
@@ -201,6 +220,15 @@ export class SceneRenderer {
 
     // When the gizmo moves/rotates a display or model, sync back to the data model
     this.transformControls.addEventListener('change', () => {
+      // Handle eye rig gizmo changes
+      if (this.eyeSelected) {
+        const pos = this.rig.position;
+        if (this.onEyeChange) {
+          this.onEyeChange({ x: pos.x, y: pos.y, z: pos.z });
+        }
+        return;
+      }
+
       // Handle FBX model gizmo changes
       const activeEntry = this.fbxModels.find(m => m.id === this.selectedModelId);
       if (activeEntry) {
@@ -379,11 +407,17 @@ export class SceneRenderer {
       });
     });
 
-    const allTargets = [...targets, ...modelTargets];
+    const allTargets = [...targets, ...modelTargets, this.eyeMesh];
     const intersects = this.raycaster.intersectObjects(allTargets);
     if (intersects.length > 0) {
       const hit = intersects[0].object;
-      if (hit.userData.fbxModelId !== undefined) {
+      if (hit.userData.isEye) {
+        // Clicked on the eye sphere → select the eye rig
+        this.deselectModel();
+        if (this.onDisplaySelect) this.onDisplaySelect(-1);
+        this.selectEye();
+        if (this.onEyeSelect) this.onEyeSelect();
+      } else if (hit.userData.fbxModelId !== undefined) {
         // Clicked on an FBX model
         this.selectModel(hit.userData.fbxModelId);
       } else {
@@ -426,7 +460,7 @@ export class SceneRenderer {
    */
   addDisplay(display) {
     const group = this._createDisplayGroup(display);
-    this.scene.add(group);
+    this.rig.add(group);
     this.displayMeshes.push(group);
     return this.displayMeshes.length - 1;
   }
@@ -439,11 +473,11 @@ export class SceneRenderer {
   updateDisplay(index, display) {
     if (index < 0 || index >= this.displayMeshes.length) return;
     const oldGroup = this.displayMeshes[index];
-    this.scene.remove(oldGroup);
+    this.rig.remove(oldGroup);
     this._disposeGroup(oldGroup);
 
     const newGroup = this._createDisplayGroup(display);
-    this.scene.add(newGroup);
+    this.rig.add(newGroup);
     this.displayMeshes[index] = newGroup;
 
     // Reattach gizmo if this is the selected display
@@ -474,7 +508,7 @@ export class SceneRenderer {
       this.selectedIndex--;
     }
 
-    this.scene.remove(group);
+    this.rig.remove(group);
     this._disposeGroup(group);
     this.displayMeshes.splice(index, 1);
 
@@ -490,7 +524,7 @@ export class SceneRenderer {
   clearDisplays() {
     this.transformControls.detach();
     for (const group of this.displayMeshes) {
-      this.scene.remove(group);
+      this.rig.remove(group);
       this._disposeGroup(group);
     }
     this.displayMeshes = [];
@@ -526,6 +560,7 @@ export class SceneRenderer {
    * @param {Object} [display] - Display data for visualization helpers
    */
   selectDisplay(index, display) {
+    this.eyeSelected = false;
     this.selectedIndex = index;
     this.selectedIndices = index >= 0 ? [index] : [];
     this._updateSelectionColors();
@@ -550,6 +585,7 @@ export class SceneRenderer {
    * @param {Object[]} displays - Corresponding display data objects (same order as indices)
    */
   selectMultipleDisplays(indices, displays) {
+    this.eyeSelected = false;
     this.selectedIndices = [...indices];
     this.selectedIndex = indices.length > 0 ? indices[indices.length - 1] : -1;
     this._updateSelectionColors();
@@ -664,7 +700,7 @@ export class SceneRenderer {
       depthWrite: false,
     });
     const quad = new THREE.Mesh(quadGeo, quadMat);
-    this.scene.add(quad);
+    this.rig.add(quad);
 
     // Border outline
     const borderGeo = new THREE.BufferGeometry().setFromPoints([
@@ -672,7 +708,7 @@ export class SceneRenderer {
     ]);
     const borderMat = new THREE.LineBasicMaterial({ color });
     const border = new THREE.Line(borderGeo, borderMat);
-    this.scene.add(border);
+    this.rig.add(border);
 
     this.nearPlaneHelpers.push({ quad, border });
   }
@@ -717,8 +753,11 @@ export class SceneRenderer {
    */
   resetCamera() {
     if (this.cameraMode === 'orbit') {
-      this.camera.position.set(1.5, 1.5, -1.5);
-      this.orbitControls.target.set(0, 0, 0.7);
+      // Offset the default framing by the eye rig position so the eye and its
+      // monitors stay in view even after the eye has been moved.
+      const e = this.rig.position;
+      this.camera.position.set(e.x + 1.5, e.y + 1.5, e.z - 1.5);
+      this.orbitControls.target.set(e.x, e.y, e.z + 0.7);
       this.orbitControls.update();
     } else {
       this.fpCamera.position.set(0, 0, 0);
@@ -891,6 +930,7 @@ export class SceneRenderer {
   selectModel(id) {
     const entry = this.fbxModels.find(m => m.id === id);
     if (!entry) return;
+    this.eyeSelected = false;
     // Deselect any selected display
     this.selectDisplay(-1);
     this.selectedModelId = id;
@@ -906,6 +946,49 @@ export class SceneRenderer {
     this.selectedModelId = null;
     this.transformControls.detach();
     if (this.onModelSelect) this.onModelSelect(false);
+  }
+
+  // --- Eye rig API ---
+
+  /**
+   * Set the eye (and eye-centric monitors) position in world space.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
+  setEyeTransform(x, y, z) {
+    this.rig.position.set(x, y, z);
+  }
+
+  /**
+   * Get the current eye position in world space.
+   * @returns {{ x: number, y: number, z: number }}
+   */
+  getEyeTransform() {
+    const p = this.rig.position;
+    return { x: p.x, y: p.y, z: p.z };
+  }
+
+  /**
+   * Select the eye rig: deselect any display/model and attach the translate
+   * gizmo to the rig so the eye (and its monitors) can be dragged.
+   */
+  selectEye() {
+    this.deselectModel();
+    this.selectDisplay(-1);
+    this.eyeSelected = true;
+    this.gizmoMode = 'translate';
+    this.transformControls.setMode('translate');
+    this.transformControls.attach(this.rig);
+  }
+
+  /**
+   * Deselect the eye rig and detach the gizmo.
+   */
+  deselectEye() {
+    if (!this.eyeSelected) return;
+    this.eyeSelected = false;
+    this.transformControls.detach();
   }
 
   /**
@@ -1135,14 +1218,14 @@ export class SceneRenderer {
       const geo = new THREE.BufferGeometry().setFromPoints([eyePos, corner]);
       const line = new THREE.Line(geo, lineMat.clone());
       line.computeLineDistances();
-      this.scene.add(line);
+      this.rig.add(line);
       this.sightLines.push(line);
     }
   }
 
   _clearSightLines() {
     for (const line of this.sightLines) {
-      this.scene.remove(line);
+      this.rig.remove(line);
       line.geometry.dispose();
       line.material.dispose();
     }
@@ -1163,7 +1246,7 @@ export class SceneRenderer {
     const mat = new THREE.MeshBasicMaterial({ color: NEAREST_POINT_COLOR });
     const sphere = new THREE.Mesh(geo, mat);
     sphere.position.copy(pos);
-    this.scene.add(sphere);
+    this.rig.add(sphere);
 
     // Dashed line from eye to nearest point
     const lineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -1177,7 +1260,7 @@ export class SceneRenderer {
     });
     const line = new THREE.Line(lineGeo, lineMat);
     line.computeLineDistances();
-    this.scene.add(line);
+    this.rig.add(line);
 
     // Distance label
     const labelCanvas = document.createElement('canvas');
@@ -1196,7 +1279,7 @@ export class SceneRenderer {
     labelPos.y += 0.05;
     label.position.copy(labelPos);
     label.scale.set(0.2, 0.05, 1);
-    this.scene.add(label);
+    this.rig.add(label);
 
     this.nearestPointHelper = { sphere, line, label };
   }
@@ -1204,9 +1287,9 @@ export class SceneRenderer {
   _clearNearestPoint() {
     if (!this.nearestPointHelper) return;
     const { sphere, line, label } = this.nearestPointHelper;
-    this.scene.remove(sphere);
-    this.scene.remove(line);
-    this.scene.remove(label);
+    this.rig.remove(sphere);
+    this.rig.remove(line);
+    this.rig.remove(label);
     sphere.geometry.dispose();
     sphere.material.dispose();
     line.geometry.dispose();
@@ -1218,8 +1301,8 @@ export class SceneRenderer {
 
   _clearNearPlanes() {
     for (const { quad, border } of this.nearPlaneHelpers) {
-      this.scene.remove(quad);
-      this.scene.remove(border);
+      this.rig.remove(quad);
+      this.rig.remove(border);
       quad.geometry.dispose();
       quad.material.dispose();
       border.geometry.dispose();
