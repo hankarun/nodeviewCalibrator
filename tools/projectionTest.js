@@ -3,7 +3,7 @@
  * This file contains test cases to verify the accuracy of projection corner calculations
  */
 
-import { calculateProjectionCorners } from './mathutils.js';
+import { calculateProjectionCorners } from '../src/mathutils.js';
 
 // Function to run test cases and display results
 function runProjectionTests() {

@@ -145,25 +145,42 @@ Configurations are saved as JSON files with the following structure:
 
 ```
 nodeViewCalibrator/
-├── main.js              # Electron main process
-├── preload.js           # Electron preload script
-├── index.html           # Desktop app HTML
-├── renderer.js          # Desktop app renderer
-├── fileInterface.js     # Unified file operations interface
-├── statusBar.js         # Status bar component
-├── display.js           # Display calculation logic
-├── canvasRenderer.js    # Canvas drawing functions
-├── fileOperations.js    # Legacy desktop file operations
-├── mathutils.js         # Mathematical utilities
-├── styles.css           # Shared styles
-└── web/                 # Web application
-    ├── index.html       # Web app HTML
-    ├── web-renderer.js  # Web app renderer
-    ├── web-fileOperations.js  # Legacy web file operations
-    ├── web-styles.css   # Web-specific styles
-    ├── environment.js   # Environment detection (legacy)
-    └── server.js        # Express server
+├── package.json         # Scripts, dependencies, electron-builder config
+├── app-icon.ico         # Desktop app icon
+├── src/                 # Shared browser core (ES modules, used by both apps)
+│   ├── renderer-core.js # App bootstrap / wires everything together (initApp)
+│   ├── display.js       # Display calculation logic + presets
+│   ├── mathutils.js     # Rotation & projection math utilities
+│   ├── sceneRenderer.js # Three.js scene, controls, FBX loading
+│   ├── fileInterface.js # Environment-aware file operations (desktop vs web)
+│   ├── statusBar.js     # Status bar component
+│   └── styles.css       # Shared styles
+├── desktop/             # Electron desktop app
+│   ├── main.js          # Electron main process
+│   ├── preload.js       # contextBridge -> window.electronAPI
+│   ├── index.html       # Desktop HTML shell (local three.js + CSP)
+│   └── renderer.js      # Thin entry: imports initApp from ../src
+├── web/                 # Web app
+│   ├── server.js        # Express static server (serves web/ and project root)
+│   ├── index.html       # Web HTML shell (CDN three.js + file inputs)
+│   ├── web-renderer.js  # Thin entry: imports initApp from ../src
+│   └── web-styles.css   # Web-specific styles
+├── samples/             # Example configuration files
+│   ├── display-config.json
+│   └── display-config2.json
+├── tools/               # Manual, developer-run diagnostic scripts
+│   ├── projectionTest.js
+│   └── projectionDebug.js
+└── scripts/             # Convenience launchers
+    ├── start-desktop.bat
+    ├── start-web.bat
+    └── launcher.html    # Standalone desktop/web chooser page
 ```
+
+> **Note:** The Electron entry point is `desktop/main.js` (see the `main` field
+> in `package.json`). `desktop/index.html` uses a strict Content-Security-Policy
+> whose `sha256` hash covers the inline importmap `<script>` — if you edit that
+> importmap, recompute the hash or three.js will fail to load.
 
 ### Building the Desktop App
 

@@ -2,7 +2,7 @@
   "name": "nodeviewcalibrator",
   "version": "1.0.0",
   "description": "A blank Electron application",
-  "main": "main.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start-web": "node web/server.js",
     "start": "electron .",
