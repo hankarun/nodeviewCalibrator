@@ -538,11 +538,13 @@ export async function initApp() {
   // --- Calculations ---
 
   function showDisplayCalculations(display) {
+    // Always update nearestPoint on the real display object so visualizations stay accurate.
+    calculateDisplayProjection(display);
     const scaledDisplay = globalFovScale !== 1.0 ? {
       ...display,
-      x: display.x * globalFovScale,
-      y: display.y * globalFovScale,
-      z: display.z * globalFovScale
+      x: display.x / globalFovScale,
+      y: display.y / globalFovScale,
+      z: display.z / globalFovScale
     } : display;
     const result = calculateDisplayProjection(scaledDisplay);
     const nearPlane = display.nearPlane != null ? display.nearPlane : null;
@@ -654,7 +656,8 @@ export async function initApp() {
       scene.setEyeTransform(eye.x || 0, eye.y || 0, eye.z || 0);
       updateEyeInputs({ x: eye.x || 0, y: eye.y || 0, z: eye.z || 0 });
       // Restore global FOV scale (defaults to 1.0 for older configs)
-      globalFovScale = result.config.fovScale || 1.0;
+      const parsedFovScale = parseFloat(result.config.fovScale);
+      globalFovScale = (Number.isFinite(parsedFovScale) && parsedFovScale > 0) ? parsedFovScale : 1.0;
       if (globalFovScaleInput) globalFovScaleInput.value = globalFovScale;
       await reloadModelsFromConfig(result.config.models || []);
       if (displays.length > 0) {
