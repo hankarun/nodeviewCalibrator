@@ -227,13 +227,14 @@ class FileInterface {
    * @param {{x:number,y:number,z:number}|null} eye - Eye (rig) position
    * @returns {Promise<Object>} Save result
    */
-  async saveFile(displays, models = [], saveAs = false, eye = null) {
+  async saveFile(displays, models = [], saveAs = false, eye = null, fovScale = 1.0) {
     try {
       const configData = {
         version: '1.0',
         timestamp: new Date().toISOString(),
         displays: displays,
         eye: eye || { x: 0, y: 0, z: 0 },
+        fovScale: (fovScale != null && fovScale !== 1.0) ? fovScale : undefined,
         models: (models || []).map(m => ({
           name: m.name,
           filePath: m.filePath || null,
