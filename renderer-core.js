@@ -50,8 +50,6 @@ export async function initApp() {
   const openConfigBtn = document.getElementById('openConfigBtn');
   const saveConfigBtn = document.getElementById('saveConfigBtn');
   const saveAsConfigBtn = document.getElementById('saveAsConfigBtn');
-  const openBundleBtn = document.getElementById('openBundleBtn');
-  const saveBundleBtn = document.getElementById('saveBundleBtn');
 
   // Model controls
   const loadFbxBtn = document.getElementById('loadFbxBtn');
@@ -289,16 +287,17 @@ export async function initApp() {
     try {
       let id;
       if (window.electronAPI) {
-        // Desktop: read binary then parse (so buffer is stored for bundle export)
+        // Desktop: read binary then parse; store the file path so the model
+        // can be reloaded from the filesystem when the config is reopened
         const result = await window.electronAPI.openFbxFile();
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
         const filePath = result.filePaths[0];
         const fileName = filePath.split(/[/\\]/).pop();
         const uint8arr = await window.electronAPI.readFileBinary(filePath);
         const fbxBuffer = uint8arr.buffer.slice(uint8arr.byteOffset, uint8arr.byteOffset + uint8arr.byteLength);
-        id = scene.loadFBXModelFromBuffer(fbxBuffer, fileName);
+        id = scene.loadFBXModelFromBuffer(fbxBuffer, fileName, filePath);
       } else {
-        // Web: use file input
+        // Web: use file input (no persistable filesystem path)
         if (!fbxFileInput) return;
         fbxFileInput.click();
         id = await new Promise((resolve) => {
@@ -306,7 +305,7 @@ export async function initApp() {
             const file = fbxFileInput.files[0];
             if (!file) { resolve(null); return; }
             const buffer = await file.arrayBuffer();
-            const newId = scene.loadFBXModelFromBuffer(buffer, file.name);
+            const newId = scene.loadFBXModelFromBuffer(buffer, file.name, null);
             resolve(newId);
           };
         });
@@ -518,6 +517,42 @@ export async function initApp() {
     projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
   }
 
+  /**
+   * Reload FBX models referenced by a saved configuration.
+   * Desktop: loads each model from its stored filesystem path and reapplies
+   * transform/render/visibility state. Web: cannot access arbitrary paths, so
+   * model reload is skipped (user must re-add models manually).
+   * @param {Array} models - Model metadata from the saved config
+   */
+  async function reloadModelsFromConfig(models) {
+    if (!models || models.length === 0) return;
+
+    if (!window.electronAPI) {
+      fileInterface.showNotification(
+        'Models are not auto-loaded in the web version — re-add them manually.',
+        'info'
+      );
+      return;
+    }
+
+    for (const m of models) {
+      if (!m.filePath) continue;
+      try {
+        const id = await scene.loadFBXModel(m.filePath, m.name);
+        scene.setModelTransform(id, m.x, m.y, m.z, m.yaw, m.pitch, m.roll, m.scale);
+        scene.setModelRenderMode(id, m.renderMode, m.opacity);
+        if (m.visible === false) scene.toggleModelVisibility(id);
+      } catch (error) {
+        console.error('Error reloading model:', m.filePath, error);
+        fileInterface.showNotification(
+          `Could not load model "${m.name}" from ${m.filePath}`,
+          'error'
+        );
+      }
+    }
+    renderModelList();
+  }
+
   async function handleOpenConfigFile() {
     try {
       if (displays.length > 0 && !fileInterface.confirmUnsavedChanges('open a new configuration')) {
@@ -527,9 +562,11 @@ export async function initApp() {
       if (result.canceled) return;
       displays.length = 0;
       selectedDisplayIndices = [];
+      [...scene.fbxModels].forEach(m => scene.removeFBXModel(m.id));
       displays.push(...result.config.displays);
       updateDisplayList();
       rebuildAllDisplayMeshes();
+      await reloadModelsFromConfig(result.config.models || []);
       if (displays.length > 0) {
         selectDisplay(0);
       } else {
@@ -545,7 +582,8 @@ export async function initApp() {
 
   async function handleSaveConfig() {
     try {
-      await fileInterface.saveFile(displays, false);
+      const models = scene.getFBXModelsForExport();
+      await fileInterface.saveFile(displays, models, false);
     } catch (error) {
       console.error('Error saving file:', error);
     }
@@ -553,53 +591,10 @@ export async function initApp() {
 
   async function handleSaveConfigAs() {
     try {
-      await fileInterface.saveFile(displays, true);
+      const models = scene.getFBXModelsForExport();
+      await fileInterface.saveFile(displays, models, true);
     } catch (error) {
       console.error('Error saving file:', error);
-    }
-  }
-
-  async function handleSaveBundle() {
-    try {
-      const models = scene.getFBXModelsForExport();
-      await fileInterface.saveBundle(displays, models);
-    } catch (error) {
-      console.error('Error saving bundle:', error);
-    }
-  }
-
-  async function handleOpenBundle() {
-    try {
-      const result = await fileInterface.openBundle();
-      if (result.canceled) return;
-
-      displays.length = 0;
-      selectedDisplayIndices = [];
-      [...scene.fbxModels].forEach(m => scene.removeFBXModel(m.id));
-
-      displays.push(...result.displays);
-      updateDisplayList();
-      rebuildAllDisplayMeshes();
-
-      for (const modelData of result.models) {
-        if (!modelData.fbxBuffer) continue;
-        const id = scene.loadFBXModelFromBuffer(modelData.fbxBuffer, modelData.name);
-        scene.setModelTransform(id, modelData.x, modelData.y, modelData.z, modelData.yaw, modelData.pitch, modelData.roll, modelData.scale);
-        scene.setModelRenderMode(id, modelData.renderMode, modelData.opacity);
-        if (!modelData.visible) scene.toggleModelVisibility(id);
-      }
-      renderModelList();
-
-      if (displays.length > 0) {
-        selectDisplay(0);
-      } else {
-        selectedDisplayIndex = -1;
-        setDisplayPanelMode('single');
-        updateDisplayBtn.disabled = true;
-        projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
-      }
-    } catch (error) {
-      console.error('Error opening bundle:', error);
     }
   }
 
@@ -735,8 +730,6 @@ export async function initApp() {
   openConfigBtn.addEventListener('click', handleOpenConfigFile);
   saveConfigBtn.addEventListener('click', handleSaveConfig);
   saveAsConfigBtn.addEventListener('click', handleSaveConfigAs);
-  if (openBundleBtn) openBundleBtn.addEventListener('click', handleOpenBundle);
-  if (saveBundleBtn) saveBundleBtn.addEventListener('click', handleSaveBundle);
 
   // Model controls
   loadFbxBtn.addEventListener('click', handleLoadFbx);

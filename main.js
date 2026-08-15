@@ -114,23 +114,3 @@ ipcMain.handle('write-file-binary', async (event, filePath, data) => {
     throw new Error(`Failed to write file: ${error.message}`);
   }
 });
-
-ipcMain.handle('open-bundle-dialog', async () => {
-  return dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'NVC Bundle', extensions: ['nvcb'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
-  });
-});
-
-ipcMain.handle('save-bundle-dialog', async () => {
-  return dialog.showSaveDialog(mainWindow, {
-    defaultPath: 'scene-bundle.nvcb',
-    filters: [
-      { name: 'NVC Bundle', extensions: ['nvcb'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
-  });
-});

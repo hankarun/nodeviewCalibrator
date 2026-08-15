@@ -221,15 +221,26 @@ class FileInterface {
   /**
    * Save configuration
    * @param {Array} displays - Display configuration array
+   * @param {Array} models - FBX model metadata from scene.getFBXModelsForExport()
    * @param {boolean} saveAs - Whether to force "Save As" dialog
    * @returns {Promise<Object>} Save result
    */
-  async saveFile(displays, saveAs = false) {
+  async saveFile(displays, models = [], saveAs = false) {
     try {
       const configData = {
         version: '1.0',
         timestamp: new Date().toISOString(),
-        displays: displays
+        displays: displays,
+        models: (models || []).map(m => ({
+          name: m.name,
+          filePath: m.filePath || null,
+          visible: m.visible,
+          x: m.transform.x, y: m.transform.y, z: m.transform.z,
+          yaw: m.transform.yaw, pitch: m.transform.pitch, roll: m.transform.roll,
+          scale: m.transform.scale,
+          renderMode: m.renderMode.mode,
+          opacity: m.renderMode.opacity
+        }))
       };
 
       let result;
@@ -384,182 +395,6 @@ class FileInterface {
       currentFile: this.getCurrentFileName(),
       hasUnsavedChanges: this.hasUnsavedChanges
     };
-  }
-
-  /**
-   * Build a binary bundle buffer containing displays + FBX model data.
-   * Format: magic "NVC1" (4 bytes) | JSON length uint32LE | JSON UTF-8 |
-   *         for each model: FBX length uint32LE | FBX bytes
-   * @param {Array} displays
-   * @param {Array} models - from scene.getFBXModelsForExport()
-   * @returns {ArrayBuffer}
-   */
-  _createBundleBuffer(displays, models) {
-    const metadata = {
-      version: '2.0',
-      timestamp: new Date().toISOString(),
-      displays,
-      models: models.map(m => ({
-        name: m.name,
-        visible: m.visible,
-        x: m.transform.x, y: m.transform.y, z: m.transform.z,
-        yaw: m.transform.yaw, pitch: m.transform.pitch, roll: m.transform.roll,
-        scale: m.transform.scale,
-        renderMode: m.renderMode.mode,
-        opacity: m.renderMode.opacity
-      }))
-    };
-
-    const jsonBytes = new TextEncoder().encode(JSON.stringify(metadata));
-    let totalSize = 4 + 4 + jsonBytes.length;
-    for (const m of models) {
-      totalSize += 4 + (m.fbxBuffer ? m.fbxBuffer.byteLength : 0);
-    }
-
-    const buffer = new ArrayBuffer(totalSize);
-    const view = new DataView(buffer);
-    const bytes = new Uint8Array(buffer);
-    let offset = 0;
-
-    // Magic "NVC1"
-    bytes[offset++] = 0x4E; bytes[offset++] = 0x56; bytes[offset++] = 0x43; bytes[offset++] = 0x31;
-    view.setUint32(offset, jsonBytes.length, true); offset += 4;
-    bytes.set(jsonBytes, offset); offset += jsonBytes.length;
-
-    for (const m of models) {
-      const fbxData = m.fbxBuffer ? new Uint8Array(m.fbxBuffer) : new Uint8Array(0);
-      view.setUint32(offset, fbxData.length, true); offset += 4;
-      if (fbxData.length > 0) { bytes.set(fbxData, offset); offset += fbxData.length; }
-    }
-
-    return buffer;
-  }
-
-  /**
-   * Parse a binary bundle buffer.
-   * @param {ArrayBuffer} buffer
-   * @returns {{ displays: Array, models: Array }}
-   */
-  _parseBundleBuffer(buffer) {
-    const view = new DataView(buffer);
-    const bytes = new Uint8Array(buffer);
-
-    const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (magic !== 'NVC1') throw new Error('Invalid bundle file: bad magic');
-
-    let offset = 4;
-    const jsonLength = view.getUint32(offset, true); offset += 4;
-    const jsonStr = new TextDecoder().decode(bytes.slice(offset, offset + jsonLength));
-    offset += jsonLength;
-    const metadata = JSON.parse(jsonStr);
-
-    const models = [];
-    for (const modelMeta of (metadata.models || [])) {
-      const fbxLength = view.getUint32(offset, true); offset += 4;
-      const fbxBuffer = fbxLength > 0 ? buffer.slice(offset, offset + fbxLength) : null;
-      offset += fbxLength;
-      models.push({ ...modelMeta, fbxBuffer });
-    }
-
-    return { displays: metadata.displays || [], models };
-  }
-
-  /**
-   * Save a scene bundle (.nvcb) containing displays and FBX model data.
-   * @param {Array} displays
-   * @param {Array} models - from scene.getFBXModelsForExport()
-   * @param {boolean} saveAs
-   */
-  async saveBundle(displays, models, saveAs = false) {
-    try {
-      const bundleBuffer = this._createBundleBuffer(displays, models);
-
-      if (this.isElectron) {
-        let filePath;
-        if (!saveAs && this.currentFilePath && this.currentFilePath.endsWith('.nvcb')) {
-          filePath = this.currentFilePath;
-        } else {
-          const dialogResult = await window.electronAPI.saveBundleFile();
-          if (dialogResult.canceled || !dialogResult.filePath) return { canceled: true };
-          filePath = dialogResult.filePath;
-        }
-        await window.electronAPI.writeFileBinary(filePath, new Uint8Array(bundleBuffer));
-        this.currentFilePath = filePath;
-        this.hasUnsavedChanges = false;
-        this.showNotification('Bundle saved!', 'success');
-        return { canceled: false, filePath };
-      } else {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `scene-bundle-${timestamp}.nvcb`;
-        const blob = new Blob([bundleBuffer], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url; link.download = filename; link.style.display = 'none';
-        document.body.appendChild(link); link.click();
-        document.body.removeChild(link); URL.revokeObjectURL(url);
-        this.currentFilePath = filename;
-        this.hasUnsavedChanges = false;
-        this.showNotification('Bundle saved!', 'success');
-        return { canceled: false, filePath: filename };
-      }
-    } catch (error) {
-      const msg = `Error saving bundle: ${error.message}`;
-      this.showNotification(msg, 'error');
-      throw new Error(msg);
-    }
-  }
-
-  /**
-   * Open a scene bundle (.nvcb) and return displays + model data with FBX buffers.
-   * @returns {Promise<{ canceled: boolean, displays?: Array, models?: Array }>}
-   */
-  async openBundle() {
-    try {
-      let bundleBuffer, filePath;
-
-      if (this.isElectron) {
-        const dialogResult = await window.electronAPI.openBundleFile();
-        if (dialogResult.canceled || !dialogResult.filePaths || dialogResult.filePaths.length === 0) {
-          return { canceled: true };
-        }
-        filePath = dialogResult.filePaths[0];
-        const uint8arr = await window.electronAPI.readFileBinary(filePath);
-        bundleBuffer = uint8arr.buffer.slice(uint8arr.byteOffset, uint8arr.byteOffset + uint8arr.byteLength);
-      } else {
-        const result = await this._openBundleWeb();
-        if (result.canceled) return { canceled: true };
-        bundleBuffer = result.buffer;
-        filePath = result.fileName;
-      }
-
-      const data = this._parseBundleBuffer(bundleBuffer);
-      this.currentFilePath = filePath;
-      this.hasUnsavedChanges = false;
-      this.showNotification('Bundle loaded!', 'success');
-      return { canceled: false, ...data, filePath };
-    } catch (error) {
-      const msg = `Error opening bundle: ${error.message}`;
-      this.showNotification(msg, 'error');
-      throw new Error(msg);
-    }
-  }
-
-  _openBundleWeb() {
-    return new Promise((resolve) => {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = '.nvcb';
-      fileInput.style.display = 'none';
-      document.body.appendChild(fileInput);
-      fileInput.addEventListener('change', async () => {
-        const file = fileInput.files[0];
-        document.body.removeChild(fileInput);
-        if (!file) { resolve({ canceled: true }); return; }
-        const buffer = await file.arrayBuffer();
-        resolve({ canceled: false, buffer, fileName: file.name });
-      });
-      fileInput.click();
-    });
   }
 }
 

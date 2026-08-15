@@ -769,6 +769,8 @@ export class SceneRenderer {
       const loader = new FBXLoader();
       loader.load(filePath, (object) => {
         const id = this._addFBXModel(object, name || filePath.split(/[/\\]/).pop());
+        const entry = this.fbxModels.find(m => m.id === id);
+        if (entry) entry.filePath = filePath;
         resolve(id);
       }, undefined, (error) => {
         reject(error);
@@ -780,26 +782,31 @@ export class SceneRenderer {
    * Load an FBX model from an ArrayBuffer (Web or Electron)
    * @param {ArrayBuffer} buffer - FBX file data
    * @param {string} [name] - Display name for the model
+   * @param {string|null} [filePath] - Source filesystem path (Electron only) for reload
    * @returns {number} ID of the added model
    */
-  loadFBXModelFromBuffer(buffer, name) {
+  loadFBXModelFromBuffer(buffer, name, filePath = null) {
     const loader = new FBXLoader();
     const object = loader.parse(buffer, '');
     const id = this._addFBXModel(object, name || 'Model');
     const entry = this.fbxModels.find(m => m.id === id);
-    if (entry) entry.fbxBuffer = buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    if (entry) {
+      entry.fbxBuffer = buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      entry.filePath = filePath || null;
+    }
     return id;
   }
 
   /**
-   * Get all FBX model data for bundle export
-   * @returns {Array} Array of model data including FBX buffer and transform state
+   * Get all FBX model data for saving to a configuration file.
+   * Includes the source file path (for filesystem reload) and transform state.
+   * @returns {Array} Array of model metadata
    */
   getFBXModelsForExport() {
     return this.fbxModels.map(entry => ({
       name: entry.name,
       visible: entry.visible,
-      fbxBuffer: entry.fbxBuffer || null,
+      filePath: entry.filePath || null,
       transform: this.getModelTransform(entry.id),
       renderMode: this.getModelRenderMode(entry.id)
     }));
@@ -832,7 +839,7 @@ export class SceneRenderer {
 
     object.userData.isFBXModel = true;
     object.rotation.order = 'ZXY';
-    this.fbxModels.push({ id, name, model: object, visible: true, renderMode: 'solid', opacity: 1.0 });
+    this.fbxModels.push({ id, name, model: object, visible: true, renderMode: 'solid', opacity: 1.0, filePath: null });
     this.scene.add(object);
     return id;
   }

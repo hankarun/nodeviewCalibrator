@@ -9,7 +9,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
   openFbxFile: () => ipcRenderer.invoke('open-fbx-dialog'),
   readFileBinary: (filePath) => ipcRenderer.invoke('read-file-binary', filePath),
-  writeFileBinary: (filePath, data) => ipcRenderer.invoke('write-file-binary', filePath, data),
-  openBundleFile: () => ipcRenderer.invoke('open-bundle-dialog'),
-  saveBundleFile: () => ipcRenderer.invoke('save-bundle-dialog')
+  writeFileBinary: (filePath, data) => ipcRenderer.invoke('write-file-binary', filePath, data)
 });
