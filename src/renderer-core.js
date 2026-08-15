@@ -107,6 +107,10 @@ export async function initApp() {
   const displays = [];
   let selectedDisplayIndex = -1;
   let selectedDisplayIndices = [];  // All currently selected display indices
+  let globalFovScale = 1.0;
+
+  // Global FOV scale input
+  const globalFovScaleInput = document.getElementById('globalFovScale');
 
   // --- Scene callbacks ---
 
@@ -223,6 +227,19 @@ export async function initApp() {
   [eyePosXInput, eyePosYInput, eyePosZInput].forEach(input => {
     if (input) input.addEventListener('input', applyEyeFromInputs);
   });
+
+  if (globalFovScaleInput) {
+    globalFovScaleInput.addEventListener('input', () => {
+      const val = parseFloat(globalFovScaleInput.value);
+      if (!isNaN(val) && val > 0) {
+        globalFovScale = val;
+        if (selectedDisplayIndex >= 0 && selectedDisplayIndex < displays.length) {
+          showDisplayCalculations(displays[selectedDisplayIndex]);
+        }
+        fileInterface.markUnsaved();
+      }
+    });
+  }
 
   if (resetEyeBtn) {
     resetEyeBtn.addEventListener('click', () => {
@@ -521,9 +538,17 @@ export async function initApp() {
   // --- Calculations ---
 
   function showDisplayCalculations(display) {
-    const result = calculateDisplayProjection(display);
+    // Always update nearestPoint on the real display object so visualizations stay accurate.
+    calculateDisplayProjection(display);
+    const scaledDisplay = globalFovScale !== 1.0 ? {
+      ...display,
+      x: display.x / globalFovScale,
+      y: display.y / globalFovScale,
+      z: display.z / globalFovScale
+    } : display;
+    const result = calculateDisplayProjection(scaledDisplay);
     const nearPlane = display.nearPlane != null ? display.nearPlane : null;
-    projectionResults.innerHTML = formatDisplayCalculations(result, display, true, nearPlane);
+    projectionResults.innerHTML = formatDisplayCalculations(result, scaledDisplay, true, nearPlane);
   }
 
   function updateNearPlaneVisualization() {
@@ -570,6 +595,8 @@ export async function initApp() {
     fileInterface.createNew();
     scene.setEyeTransform(0, 0, 0);
     updateEyeInputs({ x: 0, y: 0, z: 0 });
+    globalFovScale = 1.0;
+    if (globalFovScaleInput) globalFovScaleInput.value = 1.0;
     setDisplayPanelMode('single');
     updateDisplayList();
     projectionResults.innerHTML = '<div class="info-placeholder">Select a display to see projection info</div>';
@@ -628,6 +655,10 @@ export async function initApp() {
       const eye = result.config.eye || { x: 0, y: 0, z: 0 };
       scene.setEyeTransform(eye.x || 0, eye.y || 0, eye.z || 0);
       updateEyeInputs({ x: eye.x || 0, y: eye.y || 0, z: eye.z || 0 });
+      // Restore global FOV scale (defaults to 1.0 for older configs)
+      const parsedFovScale = parseFloat(result.config.fovScale);
+      globalFovScale = (Number.isFinite(parsedFovScale) && parsedFovScale > 0) ? parsedFovScale : 1.0;
+      if (globalFovScaleInput) globalFovScaleInput.value = globalFovScale;
       await reloadModelsFromConfig(result.config.models || []);
       if (displays.length > 0) {
         selectDisplay(0);
@@ -645,7 +676,7 @@ export async function initApp() {
   async function handleSaveConfig() {
     try {
       const models = scene.getFBXModelsForExport();
-      await fileInterface.saveFile(displays, models, false, scene.getEyeTransform());
+      await fileInterface.saveFile(displays, models, false, scene.getEyeTransform(), globalFovScale);
     } catch (error) {
       console.error('Error saving file:', error);
     }
@@ -654,7 +685,7 @@ export async function initApp() {
   async function handleSaveConfigAs() {
     try {
       const models = scene.getFBXModelsForExport();
-      await fileInterface.saveFile(displays, models, true, scene.getEyeTransform());
+      await fileInterface.saveFile(displays, models, true, scene.getEyeTransform(), globalFovScale);
     } catch (error) {
       console.error('Error saving file:', error);
     }
