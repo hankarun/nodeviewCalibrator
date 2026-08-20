@@ -72,3 +72,6 @@ out/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Agent scratch space (local issue tracker)
+.scratch/
