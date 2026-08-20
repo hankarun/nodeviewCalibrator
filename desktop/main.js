@@ -1,10 +1,12 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, screen, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const { buildMenu } = require('./menu');
 const store = require('./store');
+const { checkForUpdates } = require('./updater');
 
 const APP_TITLE = 'Node View Calibrator';
+app.setName(APP_TITLE);
 
 // Keep a global reference of the window object to prevent it from being garbage collected
 let mainWindow;
@@ -115,6 +117,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: `${APP_TITLE}`,
+    icon: path.join(__dirname, '..', 'app-icon.ico'),
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -135,6 +138,11 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     refreshTitle();
     mainWindow.show();
+
+    // Skip in dev: unpackaged runs have no installer to hand off to.
+    if (app.isPackaged) {
+      setTimeout(() => checkForUpdates({ window: mainWindow, silent: true }), 3000);
+    }
   });
 
   mainWindow.on('resize', saveWindowState);
@@ -188,7 +196,16 @@ function handleWindowClose(event) {
 }
 
 // Create window when Electron has finished initialization
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Unpackaged dev runs (`electron .`) launch the stock Electron.app bundle,
+  // so macOS shows its default icon in the Dock no matter what BrowserWindow
+  // is given. The Dock icon can be overridden at runtime; the bundle name
+  // itself cannot without rebranding the bundle, so it's left as-is in dev.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock.setIcon(nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')));
+  }
+  createWindow();
+});
 
 // Quit when all windows are closed
 app.on('window-all-closed', function() {

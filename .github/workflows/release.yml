@@ -1,0 +1,40 @@
+name: Release
+
+# Push a tag like "v1.2.3" (matching the version in package.json) to build
+# Windows and macOS installers and publish them to a GitHub Release. The
+# in-app updater (desktop/updater.js) reads that release's assets to offer
+# updates, so every published tag needs a matching .exe and .dmg attached.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist
+          - os: macos-latest
+            script: dist:mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm run ${{ matrix.script }} -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No Apple/Windows signing certificate is configured for this
+          # project; keep electron-builder from trying to auto-discover one.
+          CSC_IDENTITY_AUTO_DISCOVERY: false

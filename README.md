@@ -146,7 +146,8 @@ Configurations are saved as JSON files with the following structure:
 ```
 nodeViewCalibrator/
 ├── package.json         # Scripts, dependencies, electron-builder config
-├── app-icon.ico         # Desktop app icon
+├── app-icon.ico         # Windows app/installer icon
+├── build/               # macOS icon assets (icon.icns, icon.png) for electron-builder
 ├── src/                 # Shared browser core (ES modules, used by both apps)
 │   ├── renderer-core.js # App bootstrap / wires everything together (initApp)
 │   ├── display.js       # Display calculation logic + presets
@@ -195,7 +196,21 @@ npm run pack
 
 # Build Windows installer
 npm run dist
+
+# Build macOS installer (.dmg, unsigned)
+npm run dist:mac
 ```
+
+### Releasing
+
+Pushing a tag matching `v*.*.*` (e.g. `v1.1.0`, matching the `version` in
+`package.json`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
+which builds the Windows and macOS installers and publishes them as assets on
+a GitHub Release for that tag. The desktop app checks that release on launch
+(and via Help > Check for Updates...) and offers to download and install
+whichever asset matches the running platform — see `desktop/updater.js`.
+Neither build is code-signed, so unsigned-app warnings (Windows SmartScreen,
+macOS Gatekeeper) are expected until a signing certificate is added.
 
 ### Deploying the Web App
 

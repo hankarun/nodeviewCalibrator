@@ -9,6 +9,7 @@
 const { app, Menu, dialog, shell } = require('electron');
 const path = require('path');
 const store = require('./store');
+const { checkForUpdates } = require('./updater');
 
 const isMac = process.platform === 'darwin';
 
@@ -275,6 +276,10 @@ function buildMenu({ window, state, send }) {
         {
           label: 'Keyboard Shortcuts',
           click: () => showShortcutsDialog(window)
+        },
+        {
+          label: 'Check for Updates...',
+          click: () => checkForUpdates({ window, silent: false })
         },
         {
           label: 'Project on GitHub',
