@@ -297,7 +297,7 @@ ipcMain.handle('read-file', async (event, filePath) => {
     const content = await fs.readFile(filePath, 'utf8');
     return content;
   } catch (error) {
-    throw new Error(`Failed to read file: ${error.message}`);
+    throw new Error(`Failed to read file: ${error.message}`, { cause: error });
   }
 });
 
@@ -306,7 +306,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     await fs.writeFile(filePath, content, 'utf8');
     return true;
   } catch (error) {
-    throw new Error(`Failed to write file: ${error.message}`);
+    throw new Error(`Failed to write file: ${error.message}`, { cause: error });
   }
 });
 
@@ -314,7 +314,7 @@ ipcMain.handle('read-file-binary', async (event, filePath) => {
   try {
     return await fs.readFile(filePath);
   } catch (error) {
-    throw new Error(`Failed to read file: ${error.message}`);
+    throw new Error(`Failed to read file: ${error.message}`, { cause: error });
   }
 });
 
@@ -323,6 +323,6 @@ ipcMain.handle('write-file-binary', async (event, filePath, data) => {
     await fs.writeFile(filePath, Buffer.from(data));
     return true;
   } catch (error) {
-    throw new Error(`Failed to write file: ${error.message}`);
+    throw new Error(`Failed to write file: ${error.message}`, { cause: error });
   }
 });

@@ -28,13 +28,12 @@ export function rotateVector(v, yawRad, pitchRad, rollRad) {
 
 // Function to calculate nearest point on display plane from eye position (0,0,0)
 function calculateNearestPointOnPlane(display) {
-  const { x, y, z, yaw, pitch, roll } = display;
-  
+  const { x, y, z, yaw, pitch } = display;
+
   // Convert angles to radians
   const yawRad = yaw * Math.PI / 180;
   const pitchRad = pitch * Math.PI / 180;
-  const rollRad = roll * Math.PI / 180;
-  
+
   // Calculate normal vector of the display plane (starts pointing along -Z)
   let normal = { x: 0, y: 0, z: -1 };
   
@@ -76,7 +75,7 @@ function calculateNearestPointOnPlane(display) {
 
 // Function to calculate offcenter projection parameters based on nearest point
 function calculateProjectionCorners(display) {
-  const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
+  const { width, height, yaw, pitch, roll, x, y, z } = display;
   
   // Convert angles to radians
   const yawRad = yaw * Math.PI / 180;

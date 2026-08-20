@@ -5,7 +5,7 @@
 // First, let's investigate what might be wrong with the current calculations
 function analyzeProjectionCorners(display) {
   // Extract display properties
-  const { width, height, distance, yaw, pitch, roll, x, y, z } = display;
+  const { width, height, yaw, pitch, roll, x, y, z } = display;
   
   // Convert angles to radians
   const yawRad = yaw * Math.PI / 180;

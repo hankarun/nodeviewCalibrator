@@ -175,7 +175,7 @@ class FileInterface {
     } catch (error) {
       const errorMsg = `Error opening file: ${error.message}`;
       this.showNotification(errorMsg, 'error');
-      throw new Error(errorMsg);
+      throw new Error(errorMsg, { cause: error });
     }
   }
 
@@ -297,7 +297,7 @@ class FileInterface {
     } catch (error) {
       const errorMsg = `Error saving file: ${error.message}`;
       this.showNotification(errorMsg, 'error');
-      throw new Error(errorMsg);
+      throw new Error(errorMsg, { cause: error });
     }
   }
 

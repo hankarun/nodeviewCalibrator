@@ -7,6 +7,7 @@ export class StatusBar {
   constructor(fileInterface) {
     this.fileInterface = fileInterface;
     this.element = null;
+    this.displayCount = 0;
     this.init();
   }
 
@@ -159,8 +160,8 @@ export class StatusBar {
       <span>${hasUnsaved ? 'Unsaved changes' : 'All changes saved'}</span>
     `;
     
-    // Display count (this needs to be updated externally)
-    this.updateDisplayCount(0);
+    // Redraw the display count from the last value reported via updateDisplayCount
+    this.updateDisplayCount(this.displayCount);
   }
 
   /**
@@ -168,6 +169,7 @@ export class StatusBar {
    * @param {number} count - Number of displays
    */
   updateDisplayCount(count) {
+    this.displayCount = count;
     const displayCount = this.element.querySelector('#displayCount');
     if (displayCount) {
       displayCount.innerHTML = `

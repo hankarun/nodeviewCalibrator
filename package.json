@@ -1,12 +1,13 @@
 {
   "name": "nodeviewcalibrator",
   "version": "1.1.0",
-  "description": "A blank Electron application",
+  "description": "A display calibration tool for multi-display setups with 3D visualization",
   "main": "desktop/main.js",
   "scripts": {
     "start-web": "node web/server.js",
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/",
+    "lint": "eslint .",
     "build": "electron-builder",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win",
@@ -18,8 +19,11 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "electron": "^35.1.4",
-    "electron-builder": "^24.4.0"
+    "electron-builder": "^24.4.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
   },
   "dependencies": {
     "express": "^4.21.2",
@@ -47,6 +51,7 @@
       "!**/node_modules/.bin",
       "!dist",
       "!build",
+      "!test",
       "!**/.vscode",
       "!**/.idea",
       "!**/.vs",
