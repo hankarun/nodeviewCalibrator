@@ -1,0 +1,24 @@
+/* Desktop-only overrides.
+ *
+ * The web build wraps the app in a centered card with a page header. In the
+ * desktop app the native menu bar and title bar carry that role, so the
+ * content fills the window edge to edge and the layout claims the vertical
+ * space the header used to take. */
+
+body {
+  /* Match the window chrome rather than the web page's light grey backdrop */
+  background-color: #e8e8ec;
+  overflow: hidden;
+}
+
+.container {
+  max-width: none;
+  padding: 8px 8px 0;
+}
+
+.main-layout {
+  /* 8px top padding + the 24px status bar the StatusBar component pins down */
+  height: calc(100vh - 44px);
+  margin-bottom: 8px;
+  gap: 12px;
+}

@@ -30,9 +30,24 @@ class FileInterface {
   async init() {
     if (this.isElectron) {
       console.log('FileInterface: Initialized for Electron environment');
+      this.notifyDocumentState();
     } else {
       console.log('FileInterface: Initialized for Web environment');
     }
+  }
+
+  /**
+   * Push the current document identity and dirty flag to the main process so
+   * the window title, recent-files menu and close prompt stay accurate.
+   * No-op outside Electron.
+   */
+  notifyDocumentState() {
+    if (!this.isElectron || typeof window.electronAPI.setUiState !== 'function') return;
+    window.electronAPI.setUiState({
+      fileName: this.getCurrentFileName(),
+      filePath: this.currentFilePath,
+      hasUnsavedChanges: this.hasUnsavedChanges
+    });
   }
 
   /**
@@ -42,9 +57,15 @@ class FileInterface {
    */
   showNotification(message, type = 'info') {
     if (this.isElectron) {
-      // Use system notifications or simple alert in Electron
+      // Errors get a native message box; successes stay in the status bar so
+      // routine saves don't interrupt the user with a modal.
       if (type === 'error') {
-        alert(`Error: ${message}`);
+        window.electronAPI.showMessageBox({
+          type: 'error',
+          title: 'Node View Calibrator',
+          message: 'Something went wrong',
+          detail: message
+        }).catch(() => alert(`Error: ${message}`));
       } else {
         console.log(`${type.toUpperCase()}: ${message}`);
       }
@@ -91,6 +112,7 @@ class FileInterface {
   createNew() {
     this.currentFilePath = null;
     this.hasUnsavedChanges = false;
+    this.notifyDocumentState();
     return {
       version: '1.0',
       timestamp: new Date().toISOString(),
@@ -101,21 +123,28 @@ class FileInterface {
 
   /**
    * Open configuration file
+   * @param {string|null} [knownFilePath] - Skip the file dialog and read this
+   *   path directly (Electron only; used by File > Open Recent)
    * @returns {Promise<Object>} Configuration data and metadata
    */
-  async openFile() {
+  async openFile(knownFilePath = null) {
     try {
       let result;
-      
+
       if (this.isElectron) {
-        // Use Electron file dialog
-        const dialogResult = await window.electronAPI.openFile();
-        
-        if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
-          return { canceled: true };
+        let filePath = knownFilePath;
+
+        if (!filePath) {
+          // Use Electron file dialog
+          const dialogResult = await window.electronAPI.openFile();
+
+          if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+            return { canceled: true };
+          }
+
+          filePath = dialogResult.filePaths[0];
         }
-        
-        const filePath = dialogResult.filePaths[0];
+
         const content = await window.electronAPI.readFile(filePath);
         const config = JSON.parse(content);
         
@@ -138,6 +167,7 @@ class FileInterface {
         
         this.currentFilePath = result.filePath;
         this.hasUnsavedChanges = false;
+        this.notifyDocumentState();
         this.showNotification('Configuration loaded successfully!', 'success');
       }
       
@@ -259,6 +289,7 @@ class FileInterface {
       if (!result.canceled) {
         this.currentFilePath = result.filePath;
         this.hasUnsavedChanges = false;
+        this.notifyDocumentState();
         this.showNotification('Configuration saved successfully!', 'success');
       }
       
@@ -350,7 +381,9 @@ class FileInterface {
    * Mark configuration as having unsaved changes
    */
   markUnsaved() {
+    const wasClean = !this.hasUnsavedChanges;
     this.hasUnsavedChanges = true;
+    if (wasClean) this.notifyDocumentState();
   }
 
   /**
@@ -380,13 +413,36 @@ class FileInterface {
   /**
    * Confirm action if there are unsaved changes
    * @param {string} action - Action being performed
-   * @returns {boolean} True if should proceed
+   * @returns {Promise<boolean>} True if should proceed
    */
-  confirmUnsavedChanges(action = 'continue') {
-    if (this.hasUnsavedChanges) {
-      return confirm(`You have unsaved changes. Are you sure you want to ${action}?`);
+  async confirmUnsavedChanges(action = 'continue') {
+    if (!this.hasUnsavedChanges) return true;
+    return this.confirmAction(
+      `You have unsaved changes. Are you sure you want to ${action}?`,
+      'Discard changes'
+    );
+  }
+
+  /**
+   * Ask the user to confirm a destructive action, using a native message box
+   * on the desktop and window.confirm on the web.
+   * @param {string} message - Question to put to the user
+   * @param {string} [confirmLabel] - Label for the confirming button
+   * @returns {Promise<boolean>} True if the user confirmed
+   */
+  async confirmAction(message, confirmLabel = 'OK') {
+    if (this.isElectron && typeof window.electronAPI.showMessageBox === 'function') {
+      const response = await window.electronAPI.showMessageBox({
+        type: 'warning',
+        title: 'Node View Calibrator',
+        message,
+        buttons: [confirmLabel, 'Cancel'],
+        defaultId: 1,
+        cancelId: 1
+      });
+      return response === 0;
     }
-    return true;
+    return confirm(message);
   }
 
   /**
