@@ -51,6 +51,10 @@ export async function initApp() {
     projectionResults: document.getElementById('projectionResults'),
     presetSizeSelect: document.getElementById('presetSize'),
 
+    // Bezel size and whether it counts towards the FOV
+    borderWidthInput: document.getElementById('borderWidth'),
+    excludeBordersFromFovInput: document.getElementById('excludeBordersFromFov'),
+
     // Per-display near plane input
     nearPlaneInput: document.getElementById('nearPlane'),
     showNearPlaneInput: document.getElementById('showNearPlane'),
@@ -69,6 +73,8 @@ export async function initApp() {
       name: document.getElementById('dlgDisplayName'),
       width: document.getElementById('dlgDisplayWidth'),
       height: document.getElementById('dlgDisplayHeight'),
+      borderWidth: document.getElementById('dlgBorderWidth'),
+      excludeBordersFromFov: document.getElementById('dlgExcludeBordersFromFov'),
       yaw: document.getElementById('dlgDisplayAngle'),
       pitch: document.getElementById('dlgDisplayPitch'),
       roll: document.getElementById('dlgDisplayRoll'),

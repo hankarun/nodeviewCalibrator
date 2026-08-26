@@ -13,6 +13,67 @@ function calculateDisplayAxes(display) {
   };
 }
 
+// Bezel width assumed for displays that don't carry one, in centimetres
+export const DEFAULT_BORDER_WIDTH_CM = 2;
+
+/**
+ * Bezel width of a display, in meters. Applies to every side of the panel.
+ * @param {Object} display - Display object
+ * @returns {number} Border width in meters (0 when the display has none)
+ */
+export function getBorderWidthMeters(display) {
+  const raw = display.borderWidthCm !== undefined && display.borderWidthCm !== null && display.borderWidthCm !== ''
+    ? parseFloat(display.borderWidthCm)
+    : DEFAULT_BORDER_WIDTH_CM;
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw / 100;
+}
+
+/**
+ * Whether this display's bezel is left out of the FOV. On unless the display
+ * says otherwise, so configurations written before the setting existed are
+ * measured across the active area too.
+ * @param {Object} display - Display object
+ * @returns {boolean}
+ */
+export function isBorderExcludedFromFov(display) {
+  return display.excludeBordersFromFov !== false;
+}
+
+/**
+ * The geometry every projection calculation runs on: the panel shrunk by its
+ * bezel on all four sides, so the numbers describe the light-emitting area
+ * rather than the outline drawn in the viewport. Returns the display untouched
+ * when it opts out, has no bezel, or when the bezel would swallow the panel.
+ *
+ * The returned object opts out of further shrinking, which makes this safe to
+ * apply again further down a calculation chain.
+ * @param {Object} display - Display object (full panel dimensions)
+ * @returns {Object} Display-shaped object whose width/height are the FOV area
+ */
+export function getFovGeometry(display) {
+  if (!isBorderExcludedFromFov(display)) return display;
+  const border = getBorderWidthMeters(display);
+  if (border <= 0) return display;
+  const width = display.width - 2 * border;
+  const height = display.height - 2 * border;
+  if (!(width > 0) || !(height > 0)) return display;
+  return { ...display, width, height, excludeBordersFromFov: false };
+}
+
+/**
+ * Read a border width field, falling back to the default when it is blank or
+ * unusable so a half-typed value never produces a NaN-sized display.
+ * @param {string|number|undefined} value - Raw field value in centimetres
+ * @returns {number} Border width in centimetres
+ */
+function parseBorderWidthCm(value) {
+  if (value === undefined || value === null || value === '') return DEFAULT_BORDER_WIDTH_CM;
+  const parsed = parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_BORDER_WIDTH_CM;
+  return parsed;
+}
+
 // Create a new display from input values
 export function createDisplayFromInputs(inputs) {
   const result = {
@@ -27,8 +88,12 @@ export function createDisplayFromInputs(inputs) {
     y: parseFloat(inputs.y),
     z: parseFloat(inputs.z),
     showBorders: inputs.showBorders === undefined ? true : inputs.showBorders, // Default to true for visibility
-    borderWidthCm: inputs.borderWidthCm === undefined ? 2 : parseFloat(inputs.borderWidthCm), // Border width in cm
-    borderColor: inputs.borderColor || 'black' // Border color
+    borderWidthCm: parseBorderWidthCm(inputs.borderWidthCm), // Border width in cm, per side
+    borderColor: inputs.borderColor || 'black', // Border color
+    // Borders sit outside the FOV unless the user turns the option off
+    excludeBordersFromFov: inputs.excludeBordersFromFov === undefined
+      ? true
+      : (inputs.excludeBordersFromFov === true || inputs.excludeBordersFromFov === 'true')
   };
   // Optional per-display near plane override (null = use computed nearest point distance)
   if (inputs.nearPlane !== undefined && inputs.nearPlane !== null && inputs.nearPlane !== '') {
@@ -40,7 +105,9 @@ export function createDisplayFromInputs(inputs) {
 
 // Show calculations for the display
 export function calculateDisplayProjection(display) {
-  const result = calculateProjectionCorners(display);
+  // FOV is measured across the active screen area, so the bezel comes off the
+  // panel before any projection math runs.
+  const result = calculateProjectionCorners(getFovGeometry(display));
   const nearestPoint = result.offcenterProjection.nearestPoint;
   
   // Store the nearest point in the display object for rendering
@@ -54,10 +121,15 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
   const nearestPoint = result.offcenterProjection.nearestPoint;
   const anglesToCorners = result.anglesToCorners;
 
+  // `result` was computed from the active area, so the panel handed in here has
+  // to be shrunk the same way before anything is derived from it.
+  const fovDisplay = display ? getFovGeometry(display) : null;
+  const bordersExcluded = fovDisplay !== null && fovDisplay !== display;
+
   let edgeDistances;
 
-  if (display && (display.yaw !== 0 || display.pitch !== 0 || display.roll !== 0)) {
-    edgeDistances = calculateEdgeDistancesFromNearestPoint(display, useStableCalculation);
+  if (fovDisplay && (fovDisplay.yaw !== 0 || fovDisplay.pitch !== 0 || fovDisplay.roll !== 0)) {
+    edgeDistances = calculateEdgeDistancesFromNearestPoint(fovDisplay, useStableCalculation);
   } else {
     const displayData = {
       width: result.corners[1].x - result.corners[0].x,
@@ -67,7 +139,10 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
       z: (result.corners[0].z + result.corners[3].z) / 2,
       yaw: 0,
       pitch: 0,
-      roll: 0
+      roll: 0,
+      // These dimensions come from `result`'s corners, which already leave the
+      // bezel out — shrinking them again would count it twice.
+      excludeBordersFromFov: false
     };
 
     edgeDistances = calculateEdgeDistancesFromNearestPoint({
@@ -97,11 +172,19 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
     };
   }
 
+  // Always spell out the area the numbers describe — including when it is the
+  // whole panel — so the table keeps its row count and the summary keeps its
+  // height. A box that grows a row would resize the 3D viewport beside it.
+  const activeAreaRow = fovDisplay
+    ? `<tr><th scope="row">Active Area</th><td>${fovDisplay.width.toFixed(3)} × ${fovDisplay.height.toFixed(3)}m (${bordersExcluded ? 'borders excluded' : 'full panel'})</td></tr>`
+    : '';
+
   return `
     <section class="projection-summary">
       <header class="projection-header">Offcenter Projection (${modeLabel})</header>
       <table class="projection-table">
         <tbody>
+          ${activeAreaRow}
           <tr><th scope="row">Near Plane</th><td>${nearPlaneMeters}</td></tr>
           <tr><th scope="row">Left</th><td>${formatMeters(scaledEdgeDistances.left)}</td></tr>
           <tr><th scope="row">Right</th><td>${formatMeters(scaledEdgeDistances.right)}</td></tr>
@@ -149,23 +232,25 @@ export function formatDisplayCalculations(result, display = null, useStableCalcu
 // Calculate signed offsets from the nearest point to each display edge (left, right, top, bottom)
 // Dispatches to stable or precise calculation based on flag
 export function calculateEdgeDistancesFromNearestPoint(display, useStableCalculation = true) {
+  // Edges are the edges of the active area, not of the panel outline.
+  const geometry = getFovGeometry(display);
   let result;
   let corners;
 
-  if (display.cornersRelativeToNearest) {
-    corners = display.cornersRelativeToNearest;
+  if (geometry.cornersRelativeToNearest) {
+    corners = geometry.cornersRelativeToNearest;
   } else {
-    result = calculateProjectionCorners(display);
+    result = calculateProjectionCorners(geometry);
     corners = result.cornersRelativeToNearest;
   }
 
   if (!result) {
-    result = calculateProjectionCorners(display);
+    result = calculateProjectionCorners(geometry);
   }
 
   const nearestPoint = result.offcenterProjection.nearestPoint;
-  const { localX, localY } = calculateDisplayAxes(display);
-  const displayCenter = { x: display.x, y: display.y, z: display.z };
+  const { localX, localY } = calculateDisplayAxes(geometry);
+  const displayCenter = { x: geometry.x, y: geometry.y, z: geometry.z };
   const centerVector = {
     x: displayCenter.x - nearestPoint.x,
     y: displayCenter.y - nearestPoint.y,
@@ -175,8 +260,8 @@ export function calculateEdgeDistancesFromNearestPoint(display, useStableCalcula
   const centerOnLocalX = centerVector.x * localX.x + centerVector.y * localX.y + centerVector.z * localX.z;
   const centerOnLocalY = centerVector.x * localY.x + centerVector.y * localY.y + centerVector.z * localY.z;
 
-  const halfWidth = display.width / 2;
-  const halfHeight = display.height / 2;
+  const halfWidth = geometry.width / 2;
+  const halfHeight = geometry.height / 2;
 
   const left = centerOnLocalX - halfWidth;
   const right = centerOnLocalX + halfWidth;
@@ -186,7 +271,7 @@ export function calculateEdgeDistancesFromNearestPoint(display, useStableCalcula
   const shared = { left, right, top, bottom, localX, localY, centerOnLocalX, centerOnLocalY };
 
   if (useStableCalculation) {
-    return calculateEdgeDistancesStable(display, shared);
+    return calculateEdgeDistancesStable(geometry, shared);
   }
   return calculateEdgeDistancesPrecise(corners, shared);
 }
@@ -293,7 +378,7 @@ export function formatEdgeDistances(edgeDistances) {
 
 // Get near plane frustum values for camera setup
 export function getNearPlaneFrustum(display, nearDistance = 0.1) {
-  const result = calculateProjectionCorners(display);
+  const result = calculateProjectionCorners(getFovGeometry(display));
   const nearestPoint = result.offcenterProjection.nearestPoint;
   const eyeToNearestDistance = nearestPoint.distance;
   

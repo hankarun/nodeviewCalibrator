@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { rotateVector } from './mathutils.js';
+import { getBorderWidthMeters, getFovGeometry } from './display.js';
 
 // Display material colors
 const DISPLAY_COLOR = 0x4488ff;
@@ -658,8 +659,10 @@ export class SceneRenderer {
     const nearPlane = display.nearPlane != null ? display.nearPlane : nearestDist;
     const scale = nearPlane / nearestDist;
 
-    // Compute the 4 near-plane corners by scaling display corners from the eye (origin)
-    const { width, height, yaw, pitch, roll, x, y, z } = display;
+    // Compute the 4 near-plane corners by scaling display corners from the eye
+    // (origin). The frustum is built from the active area, so the quad has to
+    // use it too, or the visualization contradicts the numbers in the panel.
+    const { width, height, yaw, pitch, roll, x, y, z } = getFovGeometry(display);
     const halfW = width / 2;
     const halfH = height / 2;
     const yawRad = yaw * Math.PI / 180;
@@ -1081,7 +1084,6 @@ export class SceneRenderer {
     group.userData.displayWidth = width;
     group.userData.displayHeight = height;
     const showBorders = display.showBorders !== undefined ? display.showBorders : true;
-    const borderWidthCm = display.borderWidthCm !== undefined ? display.borderWidthCm : 1.4;
     const borderColor = display.borderColor || 'black';
 
     // Main display plane
@@ -1107,8 +1109,9 @@ export class SceneRenderer {
       edges.userData.borderColorHex = colorObj.getHex();
       group.add(edges);
 
-      // Inner border rectangle to show border width
-      const bw = borderWidthCm / 100; // Convert cm to meters
+      // Inner rectangle marking where the bezel ends — the same active area the
+      // projection is calculated from when borders are excluded from the FOV.
+      const bw = getBorderWidthMeters(display);
       if (bw > 0 && width > 2 * bw && height > 2 * bw) {
         const innerW = width - 2 * bw;
         const innerH = height - 2 * bw;
@@ -1185,7 +1188,10 @@ export class SceneRenderer {
     this._clearSightLines();
     if (!display) return;
 
-    const { width, height, yaw, pitch, roll, x, y, z } = display;
+    // Sight lines mark the edge of the FOV, so they end at the corners of the
+    // active area — the bezel is outside the projection when the display
+    // excludes it, and the lines have to agree with the calculated numbers.
+    const { width, height, yaw, pitch, roll, x, y, z } = getFovGeometry(display);
     const halfW = width / 2;
     const halfH = height / 2;
     const yawRad = yaw * Math.PI / 180;

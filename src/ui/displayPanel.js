@@ -1,4 +1,7 @@
-import { createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets } from '../display.js';
+import {
+  createDisplayFromInputs, calculateDisplayProjection, formatDisplayCalculations, displayPresets,
+  DEFAULT_BORDER_WIDTH_CM, isBorderExcludedFromFov
+} from '../display.js';
 
 /**
  * Display list panel: the list of displays, the Display Settings fields that
@@ -12,6 +15,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     displayOffsetXInput, displayOffsetYInput, displayOffsetZInput, displayNameInput,
     addDisplayBtn, updateDisplayBtn, autoUpdateInput, displayListContainer, projectionResults,
     presetSizeSelect, nearPlaneInput, showNearPlaneInput,
+    borderWidthInput, excludeBordersFromFovInput,
     addDisplayDialog, addDisplayConfirmBtn, addDisplayCancelBtn, addDisplayError, dlg,
     displayContextMenu, globalFovScaleInput
   } = elements;
@@ -96,6 +100,8 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     displayNameInput ? displayNameInput.closest('.input-row') : null,
     displayWidthInput ? displayWidthInput.closest('.input-row') : null,
     displayHeightInput ? displayHeightInput.closest('.input-row') : null,
+    borderWidthInput ? borderWidthInput.closest('.input-row') : null,
+    excludeBordersFromFovInput ? excludeBordersFromFovInput.closest('.input-row') : null,
     displayAngleInput ? displayAngleInput.closest('.input-row') : null,
     displayPitchInput ? displayPitchInput.closest('.input-row') : null,
     displayRollInput ? displayRollInput.closest('.input-row') : null,
@@ -240,6 +246,15 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
       displayOffsetZInput.value = display.z;
       displayNameInput.value = display.name || '';
 
+      // Border fields; configurations written before they existed fall back to
+      // the same defaults createDisplayFromInputs applies.
+      if (borderWidthInput) {
+        borderWidthInput.value = display.borderWidthCm != null ? display.borderWidthCm : DEFAULT_BORDER_WIDTH_CM;
+      }
+      if (excludeBordersFromFovInput) {
+        excludeBordersFromFovInput.checked = isBorderExcludedFromFov(display);
+      }
+
       // Populate per-display near plane input
       if (nearPlaneInput) {
         nearPlaneInput.value = display.nearPlane != null ? display.nearPlane : '';
@@ -291,6 +306,8 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
       name: displayNameInput.value,
       width: displayWidthInput.value,
       height: displayHeightInput.value,
+      borderWidthCm: borderWidthInput ? borderWidthInput.value : undefined,
+      excludeBordersFromFov: excludeBordersFromFovInput ? excludeBordersFromFovInput.checked : true,
       yaw: displayAngleInput.value,
       pitch: displayPitchInput.value,
       roll: displayRollInput.value,
@@ -323,6 +340,16 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     const height = parseFloat(values.height);
     if (!Number.isFinite(width) || width <= 0) return 'Width must be greater than 0.';
     if (!Number.isFinite(height) || height <= 0) return 'Height must be greater than 0.';
+    if (values.borderWidthCm !== undefined && values.borderWidthCm !== '') {
+      const border = parseFloat(values.borderWidthCm);
+      if (!Number.isFinite(border) || border < 0) return 'Border must be 0 or greater.';
+      // Two bezels have to leave some active area behind, or there is nothing
+      // left for the projection to be calculated from.
+      const borderMeters = border / 100;
+      if (2 * borderMeters >= Math.min(width, height)) {
+        return 'Border is too large for the display size — two borders must fit inside the panel.';
+      }
+    }
     if (values.nearPlane !== null && values.nearPlane !== '') {
       const nearPlane = parseFloat(values.nearPlane);
       if (!Number.isFinite(nearPlane) || nearPlane <= 0) {
@@ -358,7 +385,15 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   /** Write the current input values back onto the selected display. */
   function updateSelectedDisplay() {
     if (selectedDisplayIndex < 0) return;
-    displays[selectedDisplayIndex] = getDisplayFromInputs();
+    const previous = displays[selectedDisplayIndex];
+    const updated = getDisplayFromInputs();
+    // Border visibility and colour have no field in the panel, so carry over
+    // whatever the display (or the configuration it came from) already had.
+    if (previous) {
+      if (previous.showBorders !== undefined) updated.showBorders = previous.showBorders;
+      if (previous.borderColor !== undefined) updated.borderColor = previous.borderColor;
+    }
+    displays[selectedDisplayIndex] = updated;
     scene.updateDisplay(selectedDisplayIndex, displays[selectedDisplayIndex]);
     showDisplayCalculations(displays[selectedDisplayIndex]);
     updateNearPlaneVisualization();
@@ -438,7 +473,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   // Every editable field of the panel feeds the same auto-update path, so the
   // Update Display button is only ever needed with auto-update switched off.
   [
-    displayNameInput, displayWidthInput, displayHeightInput,
+    displayNameInput, displayWidthInput, displayHeightInput, borderWidthInput,
     displayAngleInput, displayPitchInput, displayRollInput,
     displayOffsetXInput, displayOffsetYInput, displayOffsetZInput,
     nearPlaneInput
@@ -449,6 +484,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   // Registered after the listener that copies the preset into width/height.
   if (presetSizeSelect) presetSizeSelect.addEventListener('change', applyLiveDisplayEdit);
   if (showNearPlaneInput) showNearPlaneInput.addEventListener('change', applyLiveDisplayEdit);
+  if (excludeBordersFromFovInput) excludeBordersFromFovInput.addEventListener('change', applyLiveDisplayEdit);
 
   if (autoUpdateInput) {
     autoUpdateInput.addEventListener('change', () => {
@@ -464,6 +500,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   // similar displays doesn't mean retyping the same numbers each time.
   let addDialogValues = {
     name: '', width: '0.5', height: '0.3',
+    borderWidthCm: String(DEFAULT_BORDER_WIDTH_CM), excludeBordersFromFov: true,
     yaw: '0', pitch: '0', roll: '0',
     x: '0', y: '0', z: '0.7',
     nearPlane: '', showNearPlane: false
@@ -478,6 +515,8 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
       name: dlg.name.value,
       width: dlg.width.value,
       height: dlg.height.value,
+      borderWidthCm: dlg.borderWidth ? dlg.borderWidth.value : undefined,
+      excludeBordersFromFov: dlg.excludeBordersFromFov ? dlg.excludeBordersFromFov.checked : true,
       yaw: dlg.yaw.value,
       pitch: dlg.pitch.value,
       roll: dlg.roll.value,
@@ -498,6 +537,8 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     dlg.name.value = values.name;
     dlg.width.value = values.width;
     dlg.height.value = values.height;
+    if (dlg.borderWidth) dlg.borderWidth.value = values.borderWidthCm;
+    if (dlg.excludeBordersFromFov) dlg.excludeBordersFromFov.checked = !!values.excludeBordersFromFov;
     dlg.yaw.value = values.yaw;
     dlg.pitch.value = values.pitch;
     dlg.roll.value = values.roll;
