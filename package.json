@@ -1,6 +1,6 @@
 {
   "name": "nodeviewcalibrator",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A display calibration tool for multi-display setups with 3D visualization",
   "main": "desktop/main.js",
   "scripts": {
