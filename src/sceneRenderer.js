@@ -36,7 +36,8 @@ export class SceneRenderer {
     this.selectedIndex = -1;
     this.selectedIndices = [];         // Array of selected display indices (multi-select)
     this._pivotObject = new THREE.Object3D(); // Pivot object for multi-select gizmo
-    this._multiOffsets = {};           // Map of display index → Vector3 offset from pivot
+    this._multiOffsets = {};           // Map of display index → Vector3 offset from pivot (pivot-local)
+    this._multiQuats = {};             // Map of display index → Quaternion captured when the pivot was placed
     this.cameraMode = 'orbit';     // 'orbit' or 'firstperson'
     this.gizmoMode = 'translate';  // 'translate' or 'rotate'
     this.onDisplayChange = null;   // Callback: (index, {x, y, z, yaw, pitch, roll}) => void
@@ -245,13 +246,19 @@ export class SceneRenderer {
         return;
       }
 
-      // Multi-select: sync all selected display meshes from pivot position
+      // Multi-select: drive every selected display from the shared pivot.
+      // Offsets were captured in pivot-local space, so rotating the pivot
+      // swings the group around its centroid and turns each display with it.
       if (this.selectedIndices.length > 1) {
-        const pivot = this._pivotObject.position;
+        const pivotPos = this._pivotObject.position;
+        const pivotQuat = this._pivotObject.quaternion;
         this.selectedIndices.forEach(i => {
           const group = this.displayMeshes[i];
-          if (!group || !this._multiOffsets[i]) return;
-          group.position.copy(pivot).add(this._multiOffsets[i]);
+          const offset = this._multiOffsets[i];
+          const baseQuat = this._multiQuats[i];
+          if (!group || !offset || !baseQuat) return;
+          group.position.copy(offset).applyQuaternion(pivotQuat).add(pivotPos);
+          group.quaternion.copy(pivotQuat).multiply(baseQuat);
           if (this.onDisplayChange) {
             this.onDisplayChange(i, {
               x: group.position.x,
@@ -513,6 +520,11 @@ export class SceneRenderer {
     this._disposeGroup(group);
     this.displayMeshes.splice(index, 1);
 
+    // The pivot bookkeeping is keyed by index, which the splice above just
+    // invalidated. The caller re-selects afterwards, which rebuilds it.
+    this._multiOffsets = {};
+    this._multiQuats = {};
+
     // Clamp selected index
     if (this.selectedIndex >= this.displayMeshes.length) {
       this.selectedIndex = this.displayMeshes.length - 1;
@@ -532,6 +544,7 @@ export class SceneRenderer {
     this.selectedIndex = -1;
     this.selectedIndices = [];
     this._multiOffsets = {};
+    this._multiQuats = {};
     this._clearSightLines();
     this._clearNearestPoint();
     this._clearNearPlanes();
@@ -609,10 +622,9 @@ export class SceneRenderer {
       return;
     }
 
-    // Multi-select: place pivot at centroid and attach gizmo to it
-    this.transformControls.setMode('translate');
-    this.gizmoMode = 'translate';
-
+    // Multi-select: place pivot at centroid and attach gizmo to it. The pivot
+    // starts unrotated, so each display's offset and orientation are captured
+    // relative to it and re-applied on every gizmo change.
     const centroid = new THREE.Vector3();
     indices.forEach(i => centroid.add(this.displayMeshes[i].position));
     centroid.divideScalar(indices.length);
@@ -621,8 +633,10 @@ export class SceneRenderer {
     this._pivotObject.rotation.set(0, 0, 0);
 
     this._multiOffsets = {};
+    this._multiQuats = {};
     indices.forEach(i => {
       this._multiOffsets[i] = this.displayMeshes[i].position.clone().sub(centroid);
+      this._multiQuats[i] = this.displayMeshes[i].quaternion.clone();
     });
 
     this.transformControls.attach(this._pivotObject);

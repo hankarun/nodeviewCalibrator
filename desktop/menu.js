@@ -91,6 +91,9 @@ function showShortcutsDialog(window) {
       `  ${mod}+D            Add display (opens the Add Display dialog)`,
       `  ${mod}+U            Update selected display (auto-update off only)`,
       `  ${mod}+Delete       Delete selected display`,
+      `  ${mod}+Shift+A      Select all displays`,
+      `  ${mod}+click        Display list: add or remove one display`,
+      '  Shift+click        Display list: select a range',
       `  ${mod}+1 / 2 / 3    Display / Model / Eye panel`,
       '  Right-click        Display list menu: add or delete',
       '',
@@ -98,7 +101,8 @@ function showShortcutsDialog(window) {
       '  F2 / F3            Orbit / first-person camera',
       '  F4                 Reset camera',
       '  Shift+drag         Snap-drag a display',
-      '  Ctrl+click         Add a display to the selection'
+      '  Ctrl+click         Add a display to the selection',
+      '  Gizmo drag         Moves or rotates the whole selection together'
     ].join('\n'),
     buttons: ['OK'],
     noLink: true
@@ -202,6 +206,13 @@ function buildMenu({ window, state, send }) {
           accelerator: 'CmdOrCtrl+U',
           enabled: hasSelection && autoUpdate === false,
           click: () => send('update-display')
+        },
+        {
+          label: 'Select All Displays',
+          // Plain Ctrl+A belongs to Edit > Select All, which the text fields
+          // need, so multi-select takes the Shift variant.
+          accelerator: 'CmdOrCtrl+Shift+A',
+          click: () => send('select-all-displays')
         },
         {
           label: 'Delete Selected Display',

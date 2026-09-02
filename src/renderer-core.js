@@ -167,6 +167,7 @@ export async function initApp() {
       case 'add-display': displayPanel.openAddDisplayDialog(); break;
       case 'update-display': displayPanel.updateSelectedDisplay(); break;
       case 'toggle-auto-update': displayPanel.setAutoUpdate(payload); break;
+      case 'select-all-displays': displayPanel.selectAllDisplays(); break;
       case 'delete-display': await displayPanel.deleteSelectedDisplay(); break;
       case 'show-panel': tabController.activatePanel(payload); break;
       case 'reset-eye': eyeControls.resetEye(); break;

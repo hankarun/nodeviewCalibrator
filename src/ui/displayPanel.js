@@ -24,6 +24,8 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   const displays = [];
   let selectedDisplayIndex = -1;
   let selectedDisplayIndices = [];  // All currently selected display indices
+  // Where a Shift+click range starts from, the way a file list works.
+  let selectionAnchorIndex = -1;
   let globalFovScale = 1.0;
 
   // Set display dimensions when preset is selected
@@ -60,7 +62,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
         showDisplayCalculations(display);
       }
     }
-    updateDisplayList();
+    queueDisplayListUpdate();
     fileInterface.markUnsaved();
   };
 
@@ -68,8 +70,14 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     selectDisplay(index);
   };
 
-  scene.onDragEnd = (index) => {
-    if (index >= 0 && displays[index]) {
+  scene.onDragEnd = (index, indices) => {
+    if (Array.isArray(indices) && indices.length > 1) {
+      // Keep the multi-selection intact — re-selecting rebuilds the shared
+      // pivot around where the displays ended up, so the next drag starts from
+      // the new centroid instead of collapsing to a single display.
+      indices.forEach(i => { if (displays[i]) calculateDisplayProjection(displays[i]); });
+      scene.selectMultipleDisplays(indices, indices.map(i => displays[i]));
+    } else if (index >= 0 && displays[index]) {
       scene.selectDisplay(index, displays[index]);
     }
     updateNearPlaneVisualization();
@@ -125,7 +133,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     if (mode === 'multi') {
       singleSelectOnlyRows.forEach(row => { row.style.display = 'none'; });
       multiSelectInfo.style.display = '';
-      multiSelectInfo.textContent = `${count} displays selected`;
+      multiSelectInfo.textContent = `${count} displays selected — drag the gizmo to transform them together`;
       displayOffsetXInput.readOnly = true;
       displayOffsetYInput.readOnly = true;
       displayOffsetZInput.readOnly = true;
@@ -163,8 +171,11 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   }
 
   /**
-   * Handle Ctrl+click multi-selection from the viewport.
-   * Switches the UI to position-only mode and attaches a shared gizmo.
+   * Select a set of displays and give them one shared gizmo, so dragging it
+   * moves (or rotates) all of them together about their centroid. Reached from
+   * Ctrl+click in the viewport, Ctrl/Shift+click in the list, and Select All.
+   * Switches the UI to position-only mode; the last index is the primary.
+   * @param {number[]} indices - Display indices to select
    */
   function selectMultipleDisplays(indices) {
     if (indices.length === 0) {
@@ -188,9 +199,28 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     }
     setDisplayPanelMode('multi', indices.length);
     reportUiState({ hasSelection: indices.length > 0 });
-    projectionResults.innerHTML = `<div class="info-placeholder">${indices.length} displays selected — use gizmo to move</div>`;
+    projectionResults.innerHTML = `<div class="info-placeholder">${indices.length} displays selected — drag the gizmo to move or rotate them together</div>`;
     scene.selectMultipleDisplays(indices, indices.map(i => displays[i]));
     updateNearPlaneVisualization();
+  }
+
+  /** Select every display so the gizmo transforms the whole rig at once. */
+  function selectAllDisplays() {
+    if (displays.length === 0) return;
+    selectionAnchorIndex = 0;
+    selectMultipleDisplays(displays.map((_, i) => i));
+  }
+
+  // Dragging a multi-selection fires a change per display per frame, and each
+  // one would otherwise rebuild the whole list. Collapse them into one rebuild.
+  let displayListUpdateQueued = false;
+  function queueDisplayListUpdate() {
+    if (displayListUpdateQueued) return;
+    displayListUpdateQueued = true;
+    requestAnimationFrame(() => {
+      displayListUpdateQueued = false;
+      updateDisplayList();
+    });
   }
 
   function updateDisplayList() {
@@ -210,7 +240,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
       const displayLabel = display.name ? `Display ${index + 1} (${display.name})` : `Display ${index + 1}`;
       displayItem.textContent = displayLabel;
       displayItem.title = `${display.width}m × ${display.height}m at (${display.x.toFixed(2)}, ${display.y.toFixed(2)}, ${display.z.toFixed(2)})`;
-      displayItem.addEventListener('click', () => selectDisplay(index));
+      displayItem.addEventListener('click', (event) => handleDisplayItemClick(index, event));
       displayItem.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -227,9 +257,41 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
 
   // --- Selection ---
 
+  /**
+   * Selection click on a row of the display list.
+   * Plain click replaces the selection, Ctrl/Cmd+click toggles one row, and
+   * Shift+click takes the range back to the anchor. The clicked row is always
+   * ordered last so it becomes the primary display.
+   * @param {number} index - Row that was clicked
+   * @param {MouseEvent} event - The originating click
+   */
+  function handleDisplayItemClick(index, event) {
+    if (event.shiftKey && selectionAnchorIndex >= 0 && selectionAnchorIndex < displays.length) {
+      // Shift-clicking a list drags a text selection along with it otherwise.
+      window.getSelection().removeAllRanges();
+      const range = [];
+      const step = index >= selectionAnchorIndex ? 1 : -1;
+      for (let i = selectionAnchorIndex; i !== index + step; i += step) range.push(i);
+      selectMultipleDisplays(range);   // anchor deliberately left where it was
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      const next = selectedDisplayIndices.includes(index)
+        ? selectedDisplayIndices.filter(i => i !== index)
+        : [...selectedDisplayIndices, index];
+      selectMultipleDisplays(next);
+      selectionAnchorIndex = index;
+      return;
+    }
+
+    selectDisplay(index);
+  }
+
   function selectDisplay(index) {
     selectedDisplayIndex = index;
     selectedDisplayIndices = index >= 0 ? [index] : [];
+    selectionAnchorIndex = index;
     setDisplayPanelMode('single');
     updateDisplayList();
 
@@ -448,6 +510,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
 
     selectedDisplayIndex = -1;
     selectedDisplayIndices = [];
+    selectionAnchorIndex = -1;
 
     if (displays.length === 0) {
       updateDisplayList();
@@ -623,6 +686,9 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
 
     const count = selectedDisplayIndices.length;
     const items = [{ label: 'Add Display…', action: openAddDisplayDialog }];
+    if (displays.length > 1) {
+      items.push({ label: 'Select All Displays', action: selectAllDisplays });
+    }
     if (count > 0) {
       items.push({ separator: true });
       items.push({
@@ -682,6 +748,12 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   window.addEventListener('blur', closeDisplayContextMenu);
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeDisplayContextMenu();
+    // Ctrl/Cmd+Shift+A selects every display. Plain Ctrl+A is left to the
+    // text fields (and, on desktop, to Edit > Select All).
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'a' || event.key === 'A')) {
+      event.preventDefault();
+      selectAllDisplays();
+    }
   });
 
   // --- Cross-module hooks (model panel, file operations) ---
@@ -690,6 +762,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   function clearSelectionForModelPick() {
     selectedDisplayIndex = -1;
     selectedDisplayIndices = [];
+    selectionAnchorIndex = -1;
     updateDisplayList();
     setDisplayPanelMode('single');
   }
@@ -698,6 +771,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
   function loadDisplays(newDisplays) {
     displays.length = 0;
     selectedDisplayIndices = [];
+    selectionAnchorIndex = -1;
     displays.push(...newDisplays);
     updateDisplayList();
     rebuildAllDisplayMeshes();
@@ -719,6 +793,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     displays.length = 0;
     selectedDisplayIndex = -1;
     selectedDisplayIndices = [];
+    selectionAnchorIndex = -1;
     globalFovScale = 1.0;
     if (globalFovScaleInput) globalFovScaleInput.value = 1.0;
     setDisplayPanelMode('single');
@@ -742,6 +817,7 @@ export function createDisplayPanel({ scene, elements, fileInterface, statusBar, 
     setGlobalFovScale,
     isAutoUpdateOn,
     selectDisplay,
+    selectAllDisplays,
     openAddDisplayDialog,
     updateSelectedDisplay,
     setAutoUpdate,
